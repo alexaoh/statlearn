@@ -1,0 +1,480 @@
+---
+title: "Module 2: Recommended Exercises"
+author: "alexaoh"
+date: "17.01.2021"
+output: 
+   pdf_document:
+      df_print: kable
+---
+
+```{r setup, include=FALSE}
+# Trying to avoid code running wider than the code blocks in rendered pdf! Not working.
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=68),tidy=TRUE)
+
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, comment = "#>", tidy = TRUE, strip.white = TRUE, size="scriptsize", warning = FALSE)
+library(dplyr) 
+library(ggplot2)
+library(MASS)
+```
+
+## Problem 1
+
+### a) 
+*Describe a real-life application in which classification might be useful. Identify the response and the predictors. Is the goal inference or prediction?*
+
+A real-life application of classification might be, for example, in deciding whether a special type of diet might lead to heart disease. In this case, the predictors would be the different types of diets and the response would be whether or not each person in the study develops cardiovascular disease or not. The goal might be both prediction and inference: One might want to predict whether a person has high risk of heart disease based on his/her diet, or one might want to learn which types of diets are most dangerous in the cardiovascular sense. 
+
+### b) 
+*Describe a real-life application in which regression might be useful. Identify the response and the predictors. Is the goal inference or prediction?*
+
+A real-life application of regression might be, for example, to predict how the standings in a football league will be at the end of the season. In this case, the predictors would be standings in the previous seasons, historical trends, stats of newly transferred players in each team, earlier results between each teams or others. The response would be the placements of each team in the league. The goal of this application is prediction. 
+
+## Problem 2
+
+*Take a look at Figure 2.9 in the course book (p.31).* 
+
+### a) 
+*Will a flexible or rigid method typically have the highest test error?*
+
+Somewhere in between a very flexible and a very rigid model will often be the sweet spot. Both a flexible and a rigid model will typically have high test error. Which of these is highest depends on the distribution of the data. However, between the models chosen in the figure, it is apparent that the more rigid method (linear regression) has the highest test error, but this is specific to this example. 
+
+### b) 
+*Does a small variance imply that the data has been under- or overfit?*
+
+A large variance could imply that the data has been overfit, because more flexible statistical methods have higher variance. This is the result of the flexible method following the observations very closely, which leads to a high variance, since the estimated function $\hat{f}$ will change a lot if the observations change. This overfitting is observed with increasing flexibility in the figure, because the mean squared error increases for the test data, despite the decrease of the mean squared error for the training data. One can say that the flexible model tries too hard to find patterns in the data, and consequently picks up patterns that are not to be found in reality (these are caused by random chance and not by properties of the unknown function $f$). 
+
+### c) 
+*Relate the problem of over- and underfitting to the bias-variance trade-off.*
+
+The bias-variance trade-off says that, in order to minimize the expected test error, one needs to select statistical models that achieve low variance and low bias. A very flexible method will achieve low bias, but high variance, while a very rigid method will achieve low variance, but high bias. When the data is overfit, the variance becomes too large, despite the fact that the bias is small. In this case, the variance is "overpowering" the decrease in bias, which means that the expected test error increases. Similarly, when the data is underfit, the variance is low but the bias is large. In this case, the bias is too large compared to the low variance, and the expected test error increases. This is why a model which has the "right amount" of flexibility often is the best way to go when the goal is to minimize the expected test error. 
+
+## Problem 3 -- Exercise 2.4.9 from ISL textbook (modified)
+
+*This exercise involves the `Auto` dataset from the `ISLR` library. Load the data into your R session by running the following commands:*
+```{r, eval = T}
+library(ISLR)
+data(Auto)
+```
+
+### a) 
+*View the data. What are the dimensions of the data? Which predictors are quantitative and which are qualitative?*
+
+```{r}
+dim(Auto) # Dimensions. 
+summary(Auto) 
+sapply(Auto, class) # Makes it more obvious which predictors are qualitative and quantitative. 
+str(Auto) # Could also be used (easier).
+```
+All predictors are quantitative, except for 'name', 'origin' and 'cylinders', which are qualitative. 
+
+### b) 
+*What is the range (min, max) of each quantitative predictor? Hint: use the `range()` function. For more advanced users, check out `sapply()`.*
+
+```{r}
+# Remember to import dplyr in setup for the first variant to work. 
+# Two different methods of removing the categorical variable. 
+quant <- Auto %>% dplyr::select(-c(name, origin, cylinders)) # Using dplyr. 
+quant2 <- Auto[, -c(2, 8, 9)] # Using regular R. 
+identical(quant, quant2) # Sidenote: Shows that the two methods give the same result.
+sapply(quant, range)
+```
+
+### c) 
+*What is the mean and standard deviation of each quantitative predictor?*
+
+```{r, cache = F}
+sapply(quant, mean) # Mean.
+sapply(quant, sd) # Standard deviation. 
+```
+
+
+### d) 
+*Now, make a new dataset called `ReducedAuto` where you remove the 10th through 85th observations. What is the range, mean and standard deviation of the quantitative predictors in this reduced set?*
+
+```{r, cache = F}
+ReducedAuto <- Auto[-c(10:85), ]
+dim(ReducedAuto) # The rows have been removed. 
+quant.ReducedAuto <- ReducedAuto %>% dplyr::select(-c(name, origin, cylinders))
+sapply(quant.ReducedAuto, range) # Range.
+sapply(quant.ReducedAuto, mean) # Mean.
+sapply(quant.ReducedAuto, sd) # Standard deviation. 
+```
+
+
+### e) 
+*Using the full dataset, investigate the quantitative predictors graphically using a scatterplot. Do you see any strong relationships between the predictors? Hint: try out the `ggpairs()` function from the `GGally` package.*
+
+```{r}
+library(GGally)
+pairs(quant) # Regular pairs plot.
+ggpairs(quant)
+```
+
+Based on the scatter plots, some relationships between the quantitative predictors seem to be stronger than others. It looks like the following pairs of predictors are highly correlated
+
+- Displacement and weight
+- Horsepower and weight
+- Displacement and horsepower
+- Mpg and displacement
+- Mpg and weight
+- Mpg and horsepower
+
+### f) 
+*Suppose we wish to predict gas milage (`mpg`) on the basis of the other variables (both quantitative and qualitative). Make some plots showing the relationships between `mpg` and the qualitative predictors (hint: `geom_boxplot()`). Which predictors would you consider helpful when predicting `mpg`?*
+
+Checking the qualitative predictors 'cylinders', 'origin' and 'name'. 
+```{r}
+ggplot(Auto, aes(x = as.factor(cylinders), y = mpg)) +
+   geom_boxplot(fill = "skyblue") + 
+   labs(title = "mpg vs cylinders") +
+   theme_minimal()
+
+ggplot(Auto, aes(x = as.factor(origin), y = mpg)) +
+   geom_boxplot(fill = "skyblue") + 
+   labs(title = "mpg vs origin") +
+   theme_minimal()
+
+ggplot(Auto, aes(x = as.factor(name), y = mpg)) +
+   geom_boxplot(fill = "skyblue") + 
+   labs(title = "mpg vs name") +
+   theme_minimal()
+```
+
+Based on the scatter plots (and the correlation coefficients) in task e) I would guess that **weight**, **displacement**, and **horsepower** (quantitative), as well as **cylinders** and **origin** (qualitative), could be considered helpful when trying to predict **mpg**. 
+
+### g) 
+*The correlation of two variables $X$ and $Y$ are defined as*
+$$ \text{cor}(X,Y) = \frac{\text{cov}(X,Y)}{\sigma_X\sigma_Y}.$$
+*Both the correlation matrix and covariance matrix are easily assessed in R with the `cor()` and `cov()` functions. Use only the covariance matrix to find the correlation between `mpg` and `displacement`, `mpg` and `horsepower`, and `mpg` and `weight`. Do your results coincide with the correlation matrix you find using `cor(Auto[,quant])`?*
+```{r}
+quantile <-  c(1,3,4,5,6,7)
+covMat <-  cov(Auto[,quantile]) # Covariance matrix of the given quantiles. 
+knitr::kable(covMat)
+# Mpg and displacement. 
+cor.mpg.disp <- covMat[1,2]/sqrt(covMat[1,1]*covMat[2,2])
+cor.mpg.disp
+# Mpg and horsepower. 
+cor.mpg.horse <- covMat[1,3]/sqrt(covMat[1,1]*covMat[3,3])
+cor.mpg.horse
+# Mpg and weight.
+cor.mpg.weight <- covMat[1,4]/sqrt(covMat[1,1]*covMat[4,4])
+cor.mpg.weight
+# Correlation matrix.
+corMat <- cor(Auto[, quantile])
+knitr::kable(corMat)
+# Check if they coincide.
+identical(cor.mpg.disp, corMat[1,2])
+identical(cor.mpg.horse, corMat[1,3])
+identical(cor.mpg.weight, corMat[1,4])
+```
+
+
+## Problem 4 -- Multivariate normal distribution
+
+The pdf of a multivariate normal distribution is on the form
+$$ f(\boldsymbol{x}) = \frac{1}{(2\pi)^{p/2}|\boldsymbol{\Sigma|}} \exp\{-\frac{1}{2}(\boldsymbol{x-\mu})^T\boldsymbol{\Sigma}^{-1}(\boldsymbol{x-\mu)}\},$$ where $\bf{x}$ is a random vector of size $p\times 1$, $\boldsymbol{\mu}$ is the mean vector of size $p\times 1$ and $\boldsymbol{\Sigma}$ is the covariance matrix of size $p\times p$.
+
+### a) 
+*Use the `mvrnorm()` function from the `MASS` library to simulate 1000 values from multivariate normal distributions with*
+  
+  i)  $$ \boldsymbol{\mu} = \begin{pmatrix}
+2 \\
+3 
+\end{pmatrix} \quad \text{and} \quad \boldsymbol{\Sigma} = \begin{pmatrix}
+1 & 0\\
+0 & 1
+\end{pmatrix},$$ 
+
+```{r}
+samples.1 <- mvrnorm(n = 1000, mu = c(2, 3), Sigma = matrix(c(1, 0, 0, 1), nrow = 2))
+```
+
+   ii) $$ \boldsymbol{\mu} = \begin{pmatrix}
+2 \\
+3 
+\end{pmatrix} \quad \text{and} \quad \boldsymbol{\Sigma} = \begin{pmatrix}
+1 & 0\\
+0 & 5
+\end{pmatrix},$$ 
+
+```{r}
+samples.2 <- mvrnorm(n = 1000, mu = c(2, 3), Sigma = matrix(c(1, 0, 0, 5), nrow = 2))
+```
+
+
+   iii) $$ \boldsymbol{\mu} = \begin{pmatrix}
+2 \\
+3 
+\end{pmatrix} \quad \text{and} \quad \boldsymbol{\Sigma} = \begin{pmatrix}
+1 & 2\\
+2 & 5
+\end{pmatrix},$$ 
+
+```{r}
+samples.3 <- mvrnorm(n = 1000, mu = c(2, 3), Sigma = matrix(c(1, 2, 2, 5), nrow = 2))
+```
+
+   iv) $$ \boldsymbol{\mu} = \begin{pmatrix}
+2 \\
+3 
+\end{pmatrix} \quad \text{and} \quad \boldsymbol{\Sigma} = \begin{pmatrix}
+1 & -2\\
+-2 & 5
+\end{pmatrix}.$$ 
+
+```{r}
+samples.4 <- mvrnorm(n = 1000, mu = c(2, 3), Sigma = matrix(c(1, -2, -2, 5), nrow = 2)) 
+```
+
+### b) 
+*Make a scatterplot of the four sets of simulated datasets. Can you see which plot belongs to which distribution?*
+
+```{r, message = F}
+plot(NULL, NULL, main = "Scatterplot", xlim = c(-2, 6), ylim = c(-6, 12), xlab = "x", ylab = "y")
+points(samples.1, col = "red")
+points(samples.2, col = "blue")
+points(samples.3, col = "green")
+points(samples.4)
+
+# Could have plotted like in LF (way better, since each scatter plot is placed in a grid).
+library(gridExtra)
+set1 <- as.data.frame(samples.1)
+colnames(set1) = c("x1", "x2")
+
+set2 <- as.data.frame(samples.2)
+colnames(set2) = c("x1", "x2")
+
+set3 <- as.data.frame(samples.3)
+colnames(set3) = c("x1", "x2")
+
+set4 <- as.data.frame(samples.4)
+colnames(set4) = c("x1", "x2")
+
+p1 <- ggplot(set1, aes(x1,x2)) + geom_point() + labs(title = "set1") + theme_minimal()
+p2 <- ggplot(set2, aes(x1,x2)) + geom_point() + labs(title = "set2") + theme_minimal()
+p3 <- ggplot(set3, aes(x1,x2)) + geom_point() + labs(title = "set3") + theme_minimal()
+p4 <- ggplot(set4, aes(x1,x2)) + geom_point() + labs(title = "set4") + theme_minimal()
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+It is apparent that the green dots belong to the distribution in iii), since these points are clearly correlated, which is not the case for the two first distributions. Furthermore, the blue points correspond to distribution ii), since the variance is larger in y. The red points then correspond to i), which is a "standard Gaussian" around (2, 3). The black points show distribution iv) since the correlation is negative, and the variance in y is the same as for iii).
+
+## Problem 5 -- Theory and practice: training and test MSE; bias-variance
+
+*We will now look closely into the simulations and calculations performed for the training error (`trainMSE`), test error (`testMSE`), and the bias-variance trade-off in lecture 1 of module 2.*
+
+*Below, the code to run the simulation is included. The data is simulated according to the following specifications:*
+
+
+* *True function $f(x)=x^2$ with normal noise $\varepsilon \sim N(0,2^2)$.*
+* *$x= -2.0, -1.9, ... ,4.0$ (grid with 61 values).*
+* *Parametric models are fitted (polynomials of degree 1 to degree 20).*
+* *M=100 simulations.*
+
+### a) Problem set-up
+
+*Look at the code below, copy it and run it yourself. Explain roughly what is done (you do not need to understand the code in detail).*
+
+*We will learn more about the `lm` function in Module 3 - now just think of this as fitting a polynomial regression and then `predict` gives the fitted curve in our grid points. `predarray` is just a way to save $M$ simulations of 61 gridpoints in $x$ and 20 polynomial models.*
+
+
+```{r, Problem2a}
+library(ggplot2)
+library(ggpubr)
+set.seed(2) # to reproduce
+M=100 # repeated samplings, x fixed 
+nord=20 # order of polynoms
+x = seq(from = -2, to = 4, by = 0.1)
+truefunc=function(x){
+  return(x^2)
+}
+true_y = truefunc(x)
+error = matrix(rnorm(length(x)*M, mean=0, sd=2),nrow=M,byrow=TRUE)
+ymat = matrix(rep(true_y,M),byrow=T,nrow=M) + error
+predarray=array(NA,dim=c(M,length(x),nord))
+for (i in 1:M){
+  for (j in 1:nord){
+    predarray[i,,j]=predict(lm(ymat[i,]~poly(x,j,raw=TRUE)))
+  }
+}
+# M matrices of size length(x) times nord
+# first, only look at variablity in the M fits and plot M curves where we had 1
+# for plotting need to stack the matrices underneath eachother and make new variable "rep"
+stackmat=NULL
+for(i in 1:M){
+  stackmat=rbind(stackmat,cbind(x,rep(i,length(x)),predarray[i,,]))
+}
+#dim(stackmat)
+colnames(stackmat)=c("x","rep",paste("poly",1:20,sep=""))
+sdf=as.data.frame(stackmat) #NB have poly1-20 now - but first only use 1,2,20
+# to add true curve using stat_function - easiest solution
+true_x=x
+yrange=range(apply(sdf,2,range)[,3:22])
+p1=ggplot(data=sdf,aes(x=x,y=poly1,group=rep,colour=rep))+scale_y_continuous(limits=yrange)+geom_line()
+p1=p1+stat_function(fun=truefunc,lwd=1.3,colour="black")+ggtitle("poly1")
+p2=ggplot(data=sdf,aes(x=x,y=poly2,group=rep,colour=rep))+scale_y_continuous(limits=yrange)+geom_line()
+p2=p2+stat_function(fun=truefunc,lwd=1.3,colour="black")+ggtitle("poly2")
+p10=ggplot(data=sdf,aes(x=x,y=poly10,group=rep,colour=rep))+scale_y_continuous(limits=yrange)+geom_line()
+p10=p10+stat_function(fun=truefunc,lwd=1.3,colour="black")+ggtitle("poly10")
+p20=ggplot(data=sdf,aes(x=x,y=poly20,group=rep,colour=rep))+scale_y_continuous(limits=yrange)+geom_line()
+p20=p20+stat_function(fun=truefunc,lwd=1.3,colour="black")+ggtitle("poly20")
+ggarrange(p1,p2,p10,p20)
+```
+
+*What do you observe in the produced plot? Which polynomial fits the best to the true curve?*
+
+First of all, it is obvious that poly1 is very far away from the true curve. Furthermore, poly2 is fitting the black true function the best, based on the smaller variance/spread of the fitting curves and the expected value of all the repeated samples. All in all, poly1 is underfit, while poly10 and (especially) poly20 are overfit, since the variance is larger. 
+
+### b) Train and test MSE
+*First we produce predictions at each grid point based on our training data (`x` and `ymat`). Then we draw new observations to calculate test MSE, see `testymat`. Observe how `trainMSE` and `testMSE` are calculated, and then run the code* 
+
+
+```{r 2btraintestMSE}
+set.seed(2) # to reproduce
+M=100 # repeated samplings,x fixed but new errors
+nord=20
+x = seq(from = -2, to = 4, by = 0.1)
+truefunc=function(x){
+  return(x^3)
+}
+true_y = truefunc(x)
+error = matrix(rnorm(length(x)*M, mean=0, sd=2),nrow=M,byrow=TRUE)
+testerror = matrix(rnorm(length(x)*M, mean=0, sd=2),nrow=M,byrow=TRUE)
+ymat = matrix(rep(true_y,M),byrow=T,nrow=M) + error
+testymat = matrix(rep(true_y,M),byrow=T,nrow=M) + testerror
+predarray=array(NA,dim=c(M,length(x),nord))
+for (i in 1:M){
+  for (j in 1:nord){
+    predarray[i,,j]=predict(lm(ymat[i,]~poly(x,j,raw=TRUE)))
+  }
+}  
+trainMSE=matrix(ncol=nord,nrow=M)
+testMSE=matrix(ncol=nord,nrow=M)
+for (i in 1:M){
+  trainMSE[i,]=apply((predarray[i,,]-ymat[i,])^2,2,mean)
+  testMSE[i,]=apply((predarray[i,,]-testymat[i,])^2,2,mean)
+}
+```
+
+*Next, we plot  -- first for one train + test data set, then for 99 more.*
+
+```{r 2btraintestplots}
+library(ggplot2)
+library(ggpubr)
+# format suitable for plotting 
+stackmat=NULL
+for (i in 1:M){
+  stackmat=rbind(stackmat,cbind(rep(i,nord),1:nord,trainMSE[i,],testMSE[i,]))
+}
+colnames(stackmat)=c("rep","poly","trainMSE","testMSE")
+sdf=as.data.frame(stackmat) 
+yrange=range(sdf[,3:4])
+p1=ggplot(data=sdf[1:nord,],aes(x=poly,y=trainMSE))+scale_y_continuous(limits=yrange)+geom_line()
+pall= ggplot(data=sdf,aes(x=poly,group=rep,y=trainMSE,colour=rep))+scale_y_continuous(limits=yrange)+geom_line()
+testp1=ggplot(data=sdf[1:nord,],aes(x=poly,y=testMSE))+scale_y_continuous(limits=yrange)+geom_line()
+testpall= ggplot(data=sdf,aes(x=poly,group=rep,y=testMSE,colour=rep))+scale_y_continuous(limits=yrange)+geom_line()
+ggarrange(p1,pall,testp1,testpall)
+```
+
+*More plots now: first boxplot and then mean for train and test MSE:*
+
+```{r 2btraintestbox}
+library(reshape2)
+df=melt(sdf,id=c("poly","rep"))[,-2]
+colnames(df)[2]="MSEtype"
+ggplot(data=df,aes(x=as.factor(poly),y=value))+geom_boxplot(aes(fill=MSEtype))
+```
+
+```{r 2btraintestmean}
+trainMSEmean=apply(trainMSE,2,mean)
+testMSEmean=apply(testMSE,2,mean)
+meandf=melt(data.frame(cbind("poly"=1:nord,trainMSEmean,testMSEmean)),id="poly")
+ggplot(data=meandf,aes(x=poly,y=value,colour=variable))+geom_line()
+```
+
+- *Which value of the polynomial gives the smallest mean testMSE?* 
+Answer: The value of the polynomial which gives the smallest mean is poly2, as is seen from the last plot above. 
+- *Which gives the smallest mean trainMSE?*
+Answer: poly20 (and larger if a higher number of degrees of freedom had been added to the simulations) gives the smallest mean trainMSE. The trainMSE is decreasing with increasing poly-number, until it hits a random error (variance) in the model. 
+- *Which would you use to predict a new value of $y$?*
+Answer: Since poly2 gives the smallest mean testMSE, I would use this to predict a new value of $y$. 
+
+### c) Bias and variance - we use the truth!
+
+*Finally, we want to see how the expected quadratic loss can be decomposed into* 
+
+* *irreducible error: $\text{Var}(\varepsilon)=4$*
+* *squared bias: difference between mean of estimated parametric model chosen and the true underlying curve (`truefunc`)*
+* *variance: variance of the estimated parametric model*
+
+*Notice that the test data is not used -- only predicted values in each x grid point.*
+
+*Study and run the code. Explain the plots produced.*
+
+```{r 2bbiasvariance}
+meanmat=matrix(ncol=length(x),nrow=nord)
+varmat=matrix(ncol=length(x),nrow=nord)
+for (j in 1:nord)
+{
+  meanmat[j,]=apply(predarray[,,j],2,mean) # we now take the mean over the M simulations - to mimic E and Var at each x value and each poly model
+  varmat[j,]=apply(predarray[,,j],2,var)
+}
+# nord times length(x)
+bias2mat=(meanmat-matrix(rep(true_y,nord),byrow=TRUE,nrow=nord))^2 #here the truth is finally used!
+```
+
+*Plotting the polys as a function of x:*
+
+```{r 2bbiasvariance1}
+df=data.frame(rep(x,each=nord),rep(1:nord,length(x)),c(bias2mat),c(varmat),rep(4,prod(dim(varmat)))) #irr is just 1
+colnames(df)=c("x","poly","bias2","variance","irreducible error") #suitable for plotting
+df$total=df$bias2+df$variance+df$`irreducible error`
+hdf=melt(df,id=c("x","poly"))
+hdf1=hdf[hdf$poly==1,]
+hdf2=hdf[hdf$poly==2,]
+hdf10=hdf[hdf$poly==10,]
+hdf20=hdf[hdf$poly==20,]
+p1=ggplot(data=hdf1,aes(x=x,y=value,colour=variable))+geom_line()+ggtitle("poly1")
+p2=ggplot(data=hdf2,aes(x=x,y=value,colour=variable))+geom_line()+ggtitle("poly2")
+p10=ggplot(data=hdf10,aes(x=x,y=value,colour=variable))+geom_line()+ggtitle("poly10")
+p20=ggplot(data=hdf20,aes(x=x,y=value,colour=variable))+geom_line()+ggtitle("poly20")
+ggarrange(p1,p2,p10,p20)
+```
+
+*Now plotting effect of more complex model at 4 chosen values of x, compare to Figures in 2.12 on page 36 in ISL (our textbook).*
+
+```{r 2bbiasvariance2,echo=TRUE}
+hdfatxa=hdf[hdf$x==-1,]
+hdfatxb=hdf[hdf$x==0.5,]
+hdfatxc=hdf[hdf$x==2,]
+hdfatxd=hdf[hdf$x==3.5,]
+pa=ggplot(data=hdfatxa,aes(x=poly,y=value,colour=variable))+geom_line()+ggtitle("x0=-1")
+pb=ggplot(data=hdfatxb,aes(x=poly,y=value,colour=variable))+geom_line()+ggtitle("x0=0.5")
+pc=ggplot(data=hdfatxc,aes(x=poly,y=value,colour=variable))+geom_line()+ggtitle("x0=2")
+pd=ggplot(data=hdfatxd,aes(x=poly,y=value,colour=variable))+geom_line()+ggtitle("x0=3.5")
+ggarrange(pa,pb,pc,pd)
+```
+
+*Study the final plot you produced: when the flexibility increases (poly increase), what happens with*
+    *i) the squared bias,*
+    Answer: The bias decreases. 
+    *ii) the variance, *
+    Answer: The variance increases. 
+    *iii) the irreducible error?*  
+    Answer: The irreducible error is constant (hence: irreducible).
+    
+   
+### d) Repeat a-c
+
+*Try to change the true function `truefunc` to something else - maybe order 3? What does this do the the plots produced? Maybe you then also want to plot poly3?*
+
+*Also try to change the standard deviation of the noise added to the curve (now it is sd=2). What happens if you change this to sd=1 or sd=3?*
+
+*Or, change to the true function that is not a polynomial?*
+
+---
+
+# Acknowledgements
+
+We thank Mette Langaas and her PhD students (in particular Julia Debik) from 2018 and 2019 for building up the original version of this exercise sheet.
