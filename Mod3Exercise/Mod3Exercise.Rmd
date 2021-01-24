@@ -1,0 +1,190 @@
+---
+title: "Module 3: Recommended Exercises"
+author: "alexaoh"
+date: "21.01.2021"
+output: 
+  pdf_document:
+    df_print: kable
+---
+
+```{r setup, include=FALSE}
+showsolA<-TRUE
+showsolB<-TRUE
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=68),tidy=TRUE)
+knitr::opts_chunk$set(echo = TRUE,tidy=TRUE,message=FALSE,warning=FALSE,strip.white=TRUE,prompt=FALSE,
+                      cache=TRUE, size="scriptsize", comment = "#>")
+```
+
+# Problem 1 (Extension from Book Ex. 9)
+
+This question involves the use of multiple linear regression on the `Auto` data set from `ISLR` package  (you may use `?Auto` to see a description of the data). First we exclude from our analysis the variable `name` and look at the data summary and structure of the dataset.
+
+```{r, cache = F}
+library(ISLR)
+Auto = subset(Auto, select = -name)
+#Auto$origin = factor(Auto$origin)
+summary(Auto)
+str(Auto)
+```
+
+We obtain a summary and see that all variables are numerical (continuous). However, when we check the description of the data (again with `?Auto`) we immediately see that `origin` is actually encoding for either American (origin=1), European (origin=2) or Janapense (origin=3) origin of the car, thus the values 1, 2 and 3 do not have any actual numerical meaning. We therefore need to first change the data type of that variable to let R know that we are dealing with a qualitative (categorical) variable, instead of a continuous one (otherwise we will obtain wrong model fits). In R such variables are called _factor variables_, and before we continue to do any analyses we first need to convert `origin` into a factor variable (a synonymous for "qualitative predictor"): 
+
+```{r, cache = F}
+Auto$origin = factor(Auto$origin) 
+```
+
+
+## a)
+Use the function `ggpairs()` from `GGally` package to produce a scatterplot matrix which includes all of the variables in the data set.
+
+```{r}
+library(GGally)
+ggpairs(Auto)
+```
+
+## b) 
+Compute the correlation matrix between the variables. You will need to remove the factor covariate `origin`, because this is no longer a continuous variable.
+
+```{r}
+variables <- Auto[-c(8)] # Remove 'origin' from the data set. 
+Sigma <- cor(variables)
+Sigma
+```
+
+
+## c) 
+Use the `lm()` function to perform a multiple linear regression with `mpg` (miles per gallon, a measure for fuel consumption) as the response and all other variables (except `name`) as the predictors. Use the `summary()` function to print the results. Comment on the output. In particular:
+
+i. Is there a relationship between the predictors and the response?
+
+ii. Is there evidence that the weight of a car influences `mpg`? Interpret the regression coefficient $\beta_{\text{weight}}$ (what happens if a car weights 1000kg more, for example?).
+
+iii. What does the coefficient for the year variable suggest?
+
+```{r}
+mreg <- lm(mpg~., data = Auto)
+summary(mreg)
+```
+
+Comments on the output:
+
+i) Several of the p-values of the coefficients related to the predictors are significant. Moreover, the F-statistic is 224.5, with a p-value of less than 2.2e-6, which signals that there is a relationship between the predictors and the response. 
+
+ii) The p-value of the coefficient $\beta_{\text{weight}}$ is $2\mathrm{e}{-16}$ which could be evidence that the weight of a car influences `mpg`. The interpretation of the coefficient is that the `mpg` changes, on average, by $\beta_{\text{weight}} = 6.710\mathrm{e}{-3}$ for every one-valued increase in the weight of the car, given that all the other predictors are fixed. This means that, e.g., if a car weighs 1000kg, the `mpg` is estimated to be reduced by 6.710$. 
+
+iii) The coefficient for the year variable suggests that `mpg` is increased by 0.770 for each increase in model year of the car. 
+
+## d)
+Look again at the regression output from question c). Now we want to test whether the `origin` variable is important. How does this work for a factor variable with more than only two levels?
+
+We construct dummy variables such that he coefficients can be estimated in the regression. If we have $k$ levels in the factor variable, we construct $k-1$ dummy variables. In this way, a baseline level is made, and each coefficient tells something about the difference in the response with respect to each of the other levels in the factor variable. More details to come after learning more of the theory behind it. 
+
+Origin2 and Origin3 are two of the coefficients that came out of R. I am not quite sure what these mean, but I am guessing that they are the two differences in levels I was talking about above. And then the baseline is the level 1, which is given by the interceipt? In this case we can see that both the estimations of European (2) and Japanese (3) are significant (from their p-values) and that they give positive values of the `mpg` when added to the interceipt (the baseline, which is American (1)), since they represent the differences from the baseline. This seems to be correct! Have a look at the R-block below.
+
+```{r}
+contrasts(Auto$origin)
+```
+As one can see, the dummy variables 2 and 3 were made automatically by R, with 1 as a baseline, as predicted. This means that the dummy variable 'Origin2' takes on the value 1 if the the origin is 2 (European) and zero otherwise. Moreover, the dummy variable 'Origin3' takes on the value 1 if the origin is 3 (Japanese) and zero otherwise. The baseline, 1 (American), corresponds to when both dummy variables are zero-valued. 
+
+## e) 
+Use the `autoplot()` function from the `ggfortify` package to produce diagnostic plots of the linear regression fit by setting `smooth.colour = NA`, as sometimes the smoothed line can be misleading. Comment on any problems you see with the fit. Do the residual plots suggest any unusually large outliers? Does the leverage plot identify any observations with unusually high leverage?
+
+```{r}
+library(ggfortify)
+autoplot(mreg, smooth.colour = NA)
+```
+
+Comments on the plots:  
+From the residual plot in the upper left it looks like the residuals form a pattern closer to a quadratic, which suggests that there might be some problems with the fit. I cannot, however, identify any unusually large outliers in this plot.
+
+Not sure how the rest of the plots, including the leverage plots should be interpreted (yet).
+
+## f)
+For beginners, it can be difficult to decide whether a certain QQ plot looks "good" or "bad", because we only look at it and do not test anything. A way to get a feeling for how "bad" a QQ plot may look, even when the normality assumption is perfectly ok, we can use simulations: We can simply draw from the normal distribution and plot the QQ plot. Use the following code to repeat this six times:
+
+```{r, eval=FALSE}
+set.seed(2332)
+n = 100
+par(mfrow = c(2,3))
+for(i in 1:6){
+  sim = rnorm(n)
+  qqnorm(sim, pch = 1, frame = FALSE)
+  qqline(sim, col = "blue", lwd = 1)
+}
+```
+
+The conclusion is that the Q-Q-plot looks good?
+
+## g)
+Let us look at interactions. These can be included via the `*` or `:` symbols in the linear predictor of the regression function (see Section 3.6.4 in the course book).
+
+Fit another model for `mpg`, including only `displacement`, `weight`, `year` and `origin` as predictors, plus an interaction between `year` and `origin` (interactions can be included as `year*origin`; this adds the main effects and the interaction at once). Is there evidence that the interactions term is relevant? Give an interpretation of the result. 
+
+```{r}
+interactions.fit <- lm(mpg ~ displacement + weight + year*origin, data = Auto)
+summary(interactions.fit)
+fit.without.interactions <- lm(mpg ~ displacement + weight + year + origin, data = Auto)
+summary(fit.without.interactions)
+```
+
+The R-squared is slightly bigger than the value obtained when only fitting the main effects, while the F-statistic is slightly smaller. However, both all the coefficients in the first fit above are significant, including the interaction terms, which might signal that the interaction terms are relevant? However, based on the small differences in R-squared and F-statistic between the two fits, I would say that there is no clear evidence that the interaction terms are relevant. 
+
+## h)
+Try a few different transformations of the variables, such as $\log(X),$ $\sqrt{X},$ $X^2$. See Section 3.6.5 in the course book for how to do this. Perhaps you manage to improve the residual plots that you got in e)? Comment on your findings.
+
+```{r}
+# log-transformation.
+
+# sqrt-transformation.
+
+# x^2-transformation.
+```
+
+
+# Problem 2
+
+## a)
+A core finding for the least-squares estimator $\hat{\boldsymbol\beta}$ of linear regression models is
+$$ \hat{\boldsymbol\beta}=({\bf X}^T{\bf X})^{-1} {\bf X}^T {\bf Y} \ , $$
+with $\hat{\boldsymbol\beta}\sim N_{p}(\boldsymbol\beta,\sigma^2({\bf X}^T{\bf X})^{-1})$.
+
+* Show that $\hat{\boldsymbol\beta}$ has this distribution with the given mean and covariance matrix. 
+* What do you need to assume to get to this result? 
+* What does this imply for the distribution of the $j$th element of $\hat{\boldsymbol\beta}$? 
+* In particular, how can we calculate the variance of $\hat{\beta}_j$?
+
+## b) 
+What is the interpretation of a 95% confidence interval? Hint: repeat experiment (on $Y$), on average how many CIs cover the true $\beta_j$? The following code shows an interpentation of a $95\%$ confidence interval. Study and fill in the code where is needed
+
+* Model: $Y = 1 + 3X + \varepsilon$, with $\varepsilon \sim \mathsf{N}(0,1)$.
+
+```{r, eval=FALSE}
+beta0 = ...
+beta1 = ...
+true_beta = c(beta0, beta1) # vector of model coefficients
+true_sd = 1 # choosing true sd
+X = runif(100,0,1) # simulate the predictor variable X
+Xmat = model.matrix(~X, data = data.frame(X)) # create design matrix
+ci_int = ci_x = 0 # Counts how many times the true value is within the confidence interval
+nsim = 1000
+for (i in 1:nsim){
+  y = rnorm(n = 100, mean = Xmat%*%true_beta, sd = rep(true_sd, 100))
+  mod = lm(y ~ x, data = data.frame(y = y, x = X))
+  ci = confint(mod)
+  ci_int[i] = ifelse(... , 1, 0) # if true value of beta0 is within the CI then 1 else 0
+  ci_x[i] = ifelse(..., 1, 0) # if true value of beta_1 is within the CI then 1 else 0
+}
+c(mean(ci_int), mean(ci_x))
+```
+
+
+## c)
+What is the interpretation of a 95% prediction interval? Hint: repeat experiment (on $Y$) for a given ${\boldsymbol x}_0$. Write R code that shows the interprentation of a 95% PI. Hint: In order to produce the PIs use the data point $x_0 = 0.4.$ Furthermore you may use a similar code structure as in b). 
+
+## d)
+Construct a 95% CI for ${\boldsymbol x}_0^T \beta$. Explain what is the connections between a CI for $\beta_j$, a CI for ${\boldsymbol x}_0^T \beta$ and a PI for $Y$ at ${\boldsymbol x}_0$.
+
+## e)
+Explain the difference between _error_ and _residual_.  What are the properties of the raw residuals? Why don't we want to use the raw residuals for model check? What is our solution to this? 
+
