@@ -154,6 +154,39 @@ with $\hat{\boldsymbol\beta}\sim N_{p}(\boldsymbol\beta,\sigma^2({\bf X}^T{\bf X
 * What does this imply for the distribution of the $j$th element of $\hat{\boldsymbol\beta}$? 
 * In particular, how can we calculate the variance of $\hat{\beta}_j$?
 
+PROOF: 
+
+* First, we show that the covariance matrix of $\hat{\boldsymbol\beta} = \sigma^2({\bf X}^T{\bf X})^{-1}$. We begin the proof by defining the quantity ${\bf C}=({\bf X}^T{\bf X})^{-1} {\bf X}^T$ such that $\hat{\boldsymbol\beta} = \bf{CY}$. Now, calculating the covariance matrix gives
+
+$$
+\begin{split}
+\mathsf{Cov}(\hat{\boldsymbol\beta}) = \mathsf{Cov}({\bf CY}) &= \bf{C}\cdot\mathsf{Cov}({\bf Y})\cdot{\bf C}^T \\
+&= ({\bf X}^T{\bf X})^{-1} {\bf X}^T \cdot \sigma^2{\bf I}\cdot ({\bf X}^T{\bf X})^{-1} {\bf X}^T)^T \\
+&= \sigma^2\{({\bf X}^T{\bf X})^{-1} {\bf X}^T \cdot {\bf X} ({\bf X}^T{\bf X})^{-T}\} \\
+&= \sigma^2\{({\bf X}^T{\bf X})^{-1} \cdot {\bf X}^T {\bf X} ({\bf X}^T{\bf X})^{-1}\} \\
+&= \sigma^2({\bf X}^T{\bf X})^{-1}, 
+\end{split}
+$$
+
+where we assume that ${\bf Y}\sim N_{n}(\bf{X}\boldsymbol\beta,\sigma^2\bf{I})$, which is a consequence of the assumption that $\boldsymbol\varepsilon\sim N_n({\bf 0},\sigma^2 {\bf I})$. 
+
+Next we show that $\mathsf{E}(\hat{\boldsymbol\beta}) = \boldsymbol{\beta}$. This is shown by regular calculation for multivariate expectation, as done in the following 
+
+$$
+\begin{split}
+\mathsf{E}(\hat{\boldsymbol\beta}) = \mathsf{E}(\bf{CY}) &= {\bf C}\cdot\mathsf{E}({\bf Y}) = {\bf C}\cdot{\bf X}\boldsymbol{\beta} \\
+&= ({\bf X}^T{\bf X})^{-1} {\bf X}^T{\bf X}\boldsymbol{\beta} = \boldsymbol{\beta}, 
+\end{split}
+$$
+
+where the same assumption on the distribution of ${\bf Y}$ has been used. 
+
+* The assumptions made are as already mentioned: ${\bf Y}$ is (multivariate) normally distributed with the already noted expectation and covariance matrix. 
+
+* For the $j^{\text{th}}$ element of $\hat{\boldsymbol\beta}$ this implies that 
+
+* The variance of $\hat{\beta_j}$ can be calculated by 
+
 ## b) 
 What is the interpretation of a 95% confidence interval? Hint: repeat experiment (on $Y$), on average how many CIs cover the true $\beta_j$? The following code shows an interpentation of a $95\%$ confidence interval. Study and fill in the code where is needed
 
