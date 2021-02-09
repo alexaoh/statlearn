@@ -1,0 +1,173 @@
+---
+title: "Module 5: Recommended Exercises"
+author: "alexaoh"
+date: "09.02.2021"
+output: 
+  pdf_document:
+    df_print: kable
+subtitle: Statistical Learning V2021
+---
+
+```{r setup, include=FALSE}
+showsolA<-TRUE
+showsolB<-TRUE
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=68),tidy=TRUE)
+knitr::opts_chunk$set(echo = TRUE,tidy=TRUE,message=FALSE,warning=FALSE,strip.white=TRUE,prompt=FALSE,
+                      cache=TRUE, size="scriptsize", comment = "#>")
+```
+
+## Problem 1: Explain how $k$-fold cross-validation is implemented 
+  
+a) Draw a figure 
+
+Done by hand. The figure shows how the data is divided into $k$ folds. In each iteration, $k-1$ folds are used to train the model, while the last fold is used to test after training. 
+
+b) Specify algorithmically what is done, and in particular how the "results" from each fold are aggregated.
+
+$k$ iterations are run in the simulation. In the first iteration, e.g. the first fold is left as a testing set and the remaining $k-1$ folds are used to train the model. The MSE is computed on the left out fold for each of these iterations. In the second iteration, e.g. the second fold is left as a testing set and the remaining folds are used to train. Then, the MSE is calculated on the left out fold. In this manner the simulation is run until all the $k$ folds have been left out. After this, the k-fold approximation of the MSE is calculated as 
+
+$$
+\text{CV}_{(k)} = \frac1k\sum_{i=1}^k\text{MSE}_i,
+$$
+
+where $\text{MSE}_i$ are the calculated MSE's in each of the iterations on the left out fold. This assumes that the size of each fold is of size $n/k$. The more general formula is 
+
+$$
+\text{CV}_(k) = \frac{1}{n} \sum_{j=1}^k n_j\cdot \text{MSE}_j,
+$$
+
+where $n_j$ is the size of the $j^{\text{th}}$ fold. 
+
+For classification situations, the same algorithm can be followed, but instead of calculating the MSE, the ratio of misclassified points is calculated in each iteration and the total $k$-fold misclassification rate is found in the end. I.e. the loss function is adapted depending on the situation. 
+
+c) Relate to one example from regression. Ideas are the complexity w.r.t. polynomials of increasing degree in multiple linear regression, or $K$ in KNN-regression.
+
+$k$-fold cross-validation can (e.g.) be used to investigate which degree of polynomial one should use for lowest prediction error when building a multiple linear regression model or to find the optimal value of $k$ in KNN-regression.
+
+d) Relate to one example from classification. Ideas are the complexity w.r.t. polynomials of increasing degree in logistic regression, or $K$ in KNN-classification.
+
+$k$-fold cross-validation can (e.g.) be used to investigate which degree of polynomial one should use for lowest prediction error when building a logistic regression model or to find the optimal value of $k$ in KNN-classification. It could also be used to choose between LDA and QDA. 
+
+Hint: the words "loss function", "fold", "training", "validation" are central.
+
+## Problem 2: Advantages and disadvantages of $k$-fold Cross-Validation
+
+What are the advantages and disadvantages of $k$-fold cross-validation relative to
+
+a) The validation set approach
+b) Leave one out cross-validation (LOOCV)
+c) What are recommended values for $k$, and why?
+  
+  Hint: the words "bias", "variance" and "computational complexity" should be included.
+
+a) _Advantages_ of $k$-fold compared to validation set: Less variability in validation set error, since the dependency on which set of observations are used for training and testing (which is very prominent with the validation set approach) is lower. 
+_Disadvantages_: More computationally intensive, since more simulations are run. Also, the variance between different sets of data is higher, since the training on the different folds are somewhat correlated (NOT SURE ABOUT THIS!). Furthermore, more of the data is used when training in the validation set approach, which means that the bias is larger in $k$-fold compared to the validation set approach. 
+b) _Advantages_ of $k$-fold: Less variance between different data sets compared to LOOCV, because in LOOCV we are averaging over data which is positively correlated. Less computationally expensive then LOOCV, since the folds are bigger than one. 
+_Disadvantages_ of $k$-fold: Larger bias, since less of the data is used when training, compared to LOOCV. 
+c) The recommended values for $k$ are 5 or 10, since these give a nice balance between variance and bias, such that none of these are very dominating. Too small values of $k$ give small variance but high bias (e.g. validation set approach), and too large values of $k$ give small bias but high variance (e.g. LOOCV). 
+
+NOT SURE ABOUT ALL OF THIS! CHECK OUT MORE LATER!!!
+
+## Problem 3: Selection bias and the "wrong way to do CV".
+
+The task here is to devise an algorithm to "prove" that the wrong way is wrong and that the right way is right. 
+
+a) What are the steps of such an algorithm? Write down a suggestion. Hint: How do you generate data for predictors and class labels, how do you do the classification task, where is the CV in the correct way and wrong way inserted into your algorithm? Can you make a schematic drawing of the right and the wrong way?
+  
+  
+  
+  b) We are now doing a simulation to illustrate the selection bias problem in CV, when it is applied the wrong way. Here is what we are (conceptually) going to do:
+  
+  Generate data
+
+* Simulate high dimensional data ($p=5000$ predictors) from independent or correlated normal variables, but with few samples ($n=50$).
+
+* Randomly assign class labels (here only 2). This means that the "truth"" is that the misclassification rate can not get very small. What is the expected misclassification rate (for this random set)?
+
+Classification task:
+
+* We choose a few ($d=25$) of the predictors (how? we just select those with the highest correlation to the outcome).
+* Perform a classification rule (here: logistic empirical Bayes) on these predictors.
+* Then we run CV ($k=5$) on either only the $d$ (=wrong way), or on all $c+d$ (=right way) predictors. 
+* Report misclassification errors for both situations.
+
+One possible version of this is presented in the R-code below. Go through the code and explain what is done in each step, then run the code and observe if the results are in agreement with what you expected. Make changes to the R-code if you want to test out different strategies.
+
+We start by generating data for $n=50$ observations
+```{r,eval=FALSE}
+library(boot)
+# GENERATE DATA; use a seed for reproducibility
+set.seed(4268)
+n=50 #number of observations
+p=5000 #number of predictors
+d=25 #top correlated predictors chosen
+#generating predictor data
+xs=matrix(rnorm(n*p,0,4),ncol=p,nrow=n) #simple way to to uncorrelated predictors
+dim(xs) # n times p
+# generate class labels independent of predictors - so if all classifies as class 1 we expect 50% errors in general
+ys=c(rep(0,n/2),rep(1,n/2)) #now really 50% of each
+table(ys)
+```
+
+**WRONG CV**: Select the 25 most correlated predictors outside the CV.
+```{r, eval=FALSE}
+corrs=apply(xs,2,cor,y=ys)
+hist(corrs)
+selected=order(corrs^2,decreasing = TRUE)[1:d] #top d correlated selected
+data=data.frame(ys,xs[,selected])
+```
+
+Then run CV around the fitting of the classifier - use logistic regression and built in `cv.glm()` function
+```{r, eval=FALSE}
+logfit=glm(ys~.,family="binomial",data=data)
+cost <- function(r, pi = 0) mean(abs(r-pi) > 0.5)
+kfold=10
+cvres=cv.glm(data=data,cost=cost,glmfit=logfit,K=kfold)
+cvres$delta
+```
+Observe a zero misclassification rate!
+
+
+**CORRECT CV**: Do not pre-select predictors outside the CV, but as part of the CV. We need to code this ourselves:
+```{r, eval=FALSE}
+reorder=sample(1:n,replace=FALSE)
+validclass=NULL
+for (i in 1:kfold)
+{
+  neach=n/kfold
+  trainids=setdiff(1:n,(((i-1)*neach+1):(i*neach)))
+  traindata=data.frame(xs[reorder[trainids],],ys[reorder[trainids]])
+  validdata=data.frame(xs[reorder[-trainids],],ys[reorder[-trainids]])
+  colnames(traindata)=colnames(validdata)=c(paste("X",1:p),"y")
+  foldcorrs= apply(traindata[,1:p],2,cor,y=traindata[,p+1]) 
+  selected=order(foldcorrs^2,decreasing = TRUE)[1:d] #top d correlated selected
+  data=traindata[,c(selected,p+1)]
+  trainlogfit=glm(y~.,family="binomial",data=data)
+  pred=plogis(predict.glm(trainlogfit,newdata=validdata[,selected]))
+  validclass=c(validclass,ifelse(pred > 0.5, 1, 0))
+}
+table(ys[reorder],validclass)
+1-sum(diag(table(ys[reorder],validclass)))/n
+```
+
+## Problem 4: Probability of being part of a bootstrap sample
+
+We will calculate the probability that a given observation in our original sample is part of a bootstrap sample. This is useful for us to know in Module 8.
+
+Our sample size is $n$.
+
+a. We draw one observation from our sample. What is the probability of drawing observation $i$ (i.e., $x_i$)? And of not drawing observation $i$?
+b. We make $n$ independent drawing (with replacement). What is the probability of not drawing observation $i$ in any of the $n$ drawings? What is then the probability that data point $i$ is in our bootstrap sample (that is, more than 0 times)?
+c. When $n$ is large $(1-\frac{1}{n})^n \approx \frac{1}{e}$. Use this to give a numerical value for the probability that a specific observation $i$ is in our bootstrap sample.
+d. Write a short R code chunk to check your result. (Hint: An example on how to this is on page 198 in our ISLR book.) You may also study the result in c. How good is the approximation as a function of $n$?
+
+```{r,echo=FALSE,eval=FALSE}
+n=100
+B=10000
+j=1
+res=rep(NA,B)
+for (b in 1:B) res[b]=(sum(sample(1:n,replace=TRUE)==j)>0)
+mean(res)
+```
+
