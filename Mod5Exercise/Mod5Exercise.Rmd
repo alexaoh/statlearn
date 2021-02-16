@@ -1,7 +1,7 @@
 ---
 title: "Module 5: Recommended Exercises"
 author: "alexaoh"
-date: "09.02.2021"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   pdf_document:
     df_print: kable
@@ -39,7 +39,7 @@ $$
 
 where $n_j$ is the size of the $j^{\text{th}}$ fold. 
 
-For classification situations, the same algorithm can be followed, but instead of calculating the MSE, the ratio of misclassified points is calculated in each iteration and the total $k$-fold misclassification rate is found in the end. I.e. the loss function is adapted depending on the situation. 
+For classification situations, the same algorithm can be followed, but instead of calculating the MSE, the ratio of misclassified points is calculated in each iteration and the total $k$-fold misclassification rate is found in the end, i.e. the loss function is adapted depending on the situation. 
 
 c) Relate to one example from regression. Ideas are the complexity w.r.t. polynomials of increasing degree in multiple linear regression, or $K$ in KNN-regression.
 
@@ -61,13 +61,12 @@ c) What are recommended values for $k$, and why?
   
   Hint: the words "bias", "variance" and "computational complexity" should be included.
 
-a) _Advantages_ of $k$-fold compared to validation set: Less variability in validation set error, since the dependency on which set of observations are used for training and testing (which is very prominent with the validation set approach) is lower. 
-_Disadvantages_: More computationally intensive, since more simulations are run. Also, the variance between different sets of data is higher, since the training on the different folds are somewhat correlated (NOT SURE ABOUT THIS!). Furthermore, more of the data is used when training in the validation set approach, which means that the bias is larger in $k$-fold compared to the validation set approach. 
-b) _Advantages_ of $k$-fold: Less variance between different data sets compared to LOOCV, because in LOOCV we are averaging over data which is positively correlated. Less computationally expensive then LOOCV, since the folds are bigger than one. 
+a) _Advantages_ of $k$-fold compared to validation set: Less variability in validation set error, since the dependency on which set of observations are used for training and testing (which is very prominent with the validation set approach) is lower. Moreover, the bias is lowe, since a bigger part of the data is used while training each of the models. 
+_Disadvantages_: More computationally intensive, since more simulations are run. Also, the variance between different sets of data is higher, since the training on the different folds are somewhat correlated (I do not quite understand this, read posts I found on Stackoverflow.etc). 
+b) _Advantages_ of $k$-fold compared to LOOCV: Less variance between different data sets compared to LOOCV, because in LOOCV we are averaging over data which is positively correlated. Less computationally expensive then LOOCV, since the folds are bigger than one. 
 _Disadvantages_ of $k$-fold: Larger bias, since less of the data is used when training, compared to LOOCV. 
-c) The recommended values for $k$ are 5 or 10, since these give a nice balance between variance and bias, such that none of these are very dominating. Too small values of $k$ give small variance but high bias (e.g. validation set approach), and too large values of $k$ give small bias but high variance (e.g. LOOCV). 
+c) The recommended values for $k$ are 5 or 10, since these give a nice balance between variance and bias, such that none of these are very dominating. Too small values of $k$ give small variance but high bias (e.g. $k = 2$), and too large values of $k$ give small bias but high variance (e.g. LOOCV). 
 
-NOT SURE ABOUT ALL OF THIS! CHECK OUT MORE LATER!!!
 
 ## Problem 3: Selection bias and the "wrong way to do CV".
 
@@ -77,7 +76,7 @@ a) What are the steps of such an algorithm? Write down a suggestion. Hint: How d
   
   
   
-  b) We are now doing a simulation to illustrate the selection bias problem in CV, when it is applied the wrong way. Here is what we are (conceptually) going to do:
+b) We are now doing a simulation to illustrate the selection bias problem in CV, when it is applied the wrong way. Here is what we are (conceptually) going to do:
   
   Generate data
 
@@ -158,11 +157,20 @@ We will calculate the probability that a given observation in our original sampl
 Our sample size is $n$.
 
 a. We draw one observation from our sample. What is the probability of drawing observation $i$ (i.e., $x_i$)? And of not drawing observation $i$?
+
+The probability of drawing observation $x_i$ from our sample of size $n$ is $\frac1n$. The probability of not drawing sample $i$ is $\frac{n-1}{n} = 1-\frac1n$.
+
 b. We make $n$ independent drawing (with replacement). What is the probability of not drawing observation $i$ in any of the $n$ drawings? What is then the probability that data point $i$ is in our bootstrap sample (that is, more than 0 times)?
+
+The probability of not drawing observation $i$ in any of the $n$ drawings is $(1-\frac1n)^n$. Then, the probability that the data point $i$ is in our bootstrap sample is $1-(1-\frac1n)^n$.
+
 c. When $n$ is large $(1-\frac{1}{n})^n \approx \frac{1}{e}$. Use this to give a numerical value for the probability that a specific observation $i$ is in our bootstrap sample.
+
+A numerical value for the probability that a specific observation $i$ is in our bootstrap sample is $1- (1-\frac1n)^n \approx 1-e^{-1} \approx 0.632$. 
+
 d. Write a short R code chunk to check your result. (Hint: An example on how to this is on page 198 in our ISLR book.) You may also study the result in c. How good is the approximation as a function of $n$?
 
-```{r,echo=FALSE,eval=FALSE}
+```{r}
 n=100
 B=10000
 j=1
@@ -170,4 +178,67 @@ res=rep(NA,B)
 for (b in 1:B) res[b]=(sum(sample(1:n,replace=TRUE)==j)>0)
 mean(res)
 ```
+
+## Problem 5: Estimate standard deviation and confidence intervals with bootstrapping
+
+Explain with words and an algorithm how you would proceed to use bootstrapping to estimate the standard deviation and the 95% confidence interval of one of the regression parameters in multiple linear regression. Comment on which assumptions you make for your regression model.
+
+To estimate the standard deviation with the bootstrap I would make $B >> 0$ samples, with replacement, from the observations of the population that I have. For each of these samples, I would fit a multiple linear regression to find the given parameter in that case. This value would be stored for later. This exact algorithm should be done many times. In the end, finding the standard error of all the values of the parameter in question could work as an estimate of the standard deviation. The 95% confidence interval could be calculated similarly: by finding the lower 2.75\% and 97.5\% quantiles of the saved parameter estimates, we could attain a 95\% confidence interval of the parameter. 
+
+The standard error can be found by the formula 
+
+$$
+\hat{SD}(\hat{\beta}) =\sqrt{\frac{1}{B-1} \sum_{b=1}^B (\hat{\beta_b} - \frac{1}{B}\sum_{b=1}^B \hat{\beta_b})^2}.
+$$
+
+## Problem 6: Implement problem 5
+
+Implement your algorithm from 5 both using for-loop and using the `boot` function. Hint: see page 195 of our ISLR book. Use our SLID data set and provide standard errors for the coefficient for age. Compare with the theoretical value $({\bf X}^T{\bf X})^{-1}\hat{\sigma}^2$ that you find in the output from the regression model.
+
+```{r,eval=FALSE}
+library(car)
+library(boot)
+SLID = na.omit(SLID)
+n = dim(SLID)[1]
+SLID.lm = lm(wages~., data = SLID)
+summary(SLID.lm)$coeff["age",]
+```
+
+Now go ahead and use bootstrap to estimate the 95\% CI. 
+```{r, eval=FALSE}
+set.seed(4268) # For reproducibility. 
+
+# Manually
+B <- 1000
+ages <- rep(NA, B)
+for (b in 1:B){
+  index <- sample(x = nrow(SLID), size = nrow(SLID), replace = T)
+  fit <- lm(wages~., data = SLID, subset = index)
+  ages[b] <- coef(fit)["age"]
+}
+
+mean(ages)
+sd(ages)
+quantile(ages, c(0.025, 0.975))
+
+
+# Using boot-function.
+boot.fn <- function(data, index){
+  return (coef(lm(wages~., data = data, subset = index))["age"])
+}
+
+boot(SLID, boot.fn, B)
+
+
+confint(SLID.lm) # Compare to what R gives us when fitting the model.
+
+library(ggplot2)
+data = data.frame(beta_hat = ages, norm_den = dnorm(ages, mean(ages), 
+    sd(ages)))
+ggplot(data) + geom_histogram(aes(x = ages, y = ..density..), fill = "grey80", 
+    color = "black") + geom_line(aes(x = ages, y = norm_den), color = "red") + 
+    theme_minimal()
+
+```
+
 
