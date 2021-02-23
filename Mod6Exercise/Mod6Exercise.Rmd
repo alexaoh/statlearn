@@ -1,0 +1,200 @@
+---
+title: "Module 6: Recommended Exercises"
+author: "alexaoh"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  pdf_document:
+    df_print: kable
+subtitle: Statistical Learning V2021
+---
+
+```{r setup, include=FALSE}
+showsolA<-TRUE
+showsolB<-TRUE
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=68),tidy=TRUE)
+knitr::opts_chunk$set(echo = TRUE,tidy=TRUE,message=FALSE,warning=FALSE,strip.white=TRUE,prompt=FALSE,
+                      cache=TRUE, size="scriptsize", comment = "#>")
+```
+
+## Recommended Exercise 1
+
+1. Show that the least square estimator of a standard linear model is given by $\hat{\boldsymbol{\beta}} = (X^TX)^{-1 }X\boldsymbol{Y}$. 
+
+I will use linear algebra and the projection theorem to show this easily. The least squares estimator wants to minimize the quantity $\|\boldsymbol{Y} - \hat{\boldsymbol{Y}}\|_2 = \|\boldsymbol{Y} - X\hat{\boldsymbol{\beta}}\|_2$. Since we know that $X\hat{\boldsymbol{\beta}} \in \text{Col}(X)$, the projection theorem gives that the closest point to $\boldsymbol{Y}$ in $\text{Col}(X)$ is the orthogonal projection of $\boldsymbol{Y}$ onto $\text{Col}(X)$. This means that 
+
+$$
+\begin{split}
+&X\hat{\boldsymbol{\beta}} = \text{proj}_{\text{Col}(X)}\boldsymbol{Y} \\
+&\implies \boldsymbol{Y} - X\hat{\boldsymbol{\beta}} \in (\text{Col}(X)) ^{\bot}\\
+&\implies \boldsymbol{v}(\boldsymbol{Y} - X\hat{\boldsymbol{\beta}}) = 0, \forall \boldsymbol{v} \in \text{Col}(X)\\
+&\implies X^T(\boldsymbol{Y} - X\hat{\boldsymbol{\beta}}) = 0 \\
+&\implies X^T\boldsymbol{Y} = X^TX\hat{\boldsymbol{\beta}}.
+\end{split}
+$$
+
+Now, if $X$ has full rank, this implies that $\hat{\boldsymbol{\beta}} = (X^TX)^{-1 }X\boldsymbol{Y}$, which completes the proof. 
+
+2. Show that the maximum likelihood estimator is equal to the least square estimator for the standard linear model. 
+
+We assume that $\boldsymbol{Y} \sim N(X\hat{\boldsymbol{\beta}}, \sigma^2I)$, which means that the log-likelihood function becomes
+
+$$
+\text{ln}(\mathcal{L}(\boldsymbol{\beta}, \sigma^2)) = \text{ln}\left(\frac{1}{(2\pi)^{n/2}\sigma^{n/2}}\exp{\left(-\frac12(\boldsymbol{Y} - X\boldsymbol{\beta})^T(\sigma^2I)^{-1}(\boldsymbol{Y} - X\boldsymbol{\beta})\right)}\right), 
+$$
+
+which should be maximized. This is equivalent to minimizing the exponent $(\boldsymbol{Y} - X\boldsymbol{\beta})^T(\boldsymbol{Y} - X\boldsymbol{\beta})= \|\boldsymbol{Y} - X\boldsymbol{\beta}\|_2$, which is what was done in 1. This shows that the MLE is equal to OLS for the standard linear model. 
+
+## Recommended Exercise 2
+
+```{r}
+library(ISLR)
+data(Credit)
+library(GGally)
+data <- Credit[,c("Balance", "Age", "Cards", "Education","Income", "Limit", "Rating")]
+ggpairs(data)
+```
+
+## Recommended Exercise 3
+
+1. For the Credit dataset, pick the best model using Best Subset Selection according to $C_p$, $BIC$ and Adjusted $R^2$. 
+
+```{r}
+library(leaps)
+sum(is.na(Credit)) # No data is missing!
+
+credit <- Credit
+set.seed(1)
+train_perc <- 0.75
+credit_data_train_index <- sample(1:nrow(credit),nrow(credit)*train_perc)
+credit_data_test_index <- (-credit_data_train_index)
+credit_data_training <- credit[credit_data_train_index, ]
+credit_data_testing <- credit[credit_data_test_index, ]
+
+
+regfit.full <- regsubsets(Balance~., data = credit_data_training, nvmax = 12)
+reg.summary <- summary(regfit.full)
+
+# For plotting best points. 
+best.adjr2 <- which.max(reg.summary$adjr2)
+best.rss <- which.min(reg.summary$rss)
+best.cp <- which.min(reg.summary$cp)
+best.bic <- which.min(reg.summary$bic)
+
+# Plot manually. 
+par(mfrow=c(2,2))
+
+plot(reg.summary$rss, xlab = "Number of variables", ylab = "RSS", type = "l")
+points(best.rss, reg.summary$rss[best.rss], col = "red", cex = 2, pch = 20)
+
+plot(reg.summary$adjr2, xlab = "Number of variables", ylab = "Adjusted R2", type = "l")
+points(best.adjr2, reg.summary$adjr2[best.adjr2], col = "red", cex = 2, pch = 20)
+
+plot(reg.summary$bic, xlab = "Number of variables", ylab = "BIC", type = "l")
+points(best.bic, reg.summary$bic[best.bic], col = "red", cex = 2, pch = 20)
+
+plot(reg.summary$cp, xlab = "Number of variables", ylab = "Cp", type = "l")
+points(best.cp, reg.summary$cp[best.cp], col = "red", cex = 2, pch = 20)
+
+par(mfrow=c(1,1))
+plot(regfit.full, scale = "Cp") # Not sure how this is useful. 
+```
+
+2. Pick the best model using Best Subset Selection according to 10-fold CV.
+\textcolor{red}{This seems like a lot, so is skipped for now!}
+
+```{r}
+
+```
+
+## Recommended Exercise 4
+1. Select the best model for the Credit dataset using Forward, Backward and Hybrid (sequential replacement) Stepwise Selection.
+
+```{r}
+regfit.fwd <- regsubsets(Balance~., data = credit_data_training, nvmax = 12, method = "forward")
+summary(regfit.fwd)
+regfit.bwd <- regsubsets(Balance~., data = credit_data_training, nvmax = 12, method = "backward")
+summary(regfit.bwd)
+```
+
+
+2. Compare with the results obtained with Best Subset Selection. 
+
+\textcolor{red}{Do more on this task later also!!}
+
+## Recommended Exercise 5
+
+1. Apply Ridge regression to the Credit dataset. 
+
+```{r}
+library(glmnet)
+x <- model.matrix(Balance~., data = credit_data_training)[, -1]
+y <- credit_data_training$Balance
+
+grid <- 10^seq(10, -2, length = 100)
+ridge.mod <- glmnet(x, y, alpha = 0, lambda = grid)
+```
+
+
+2. Compare the results with the standard linear regression.
+
+```{r}
+lin.reg <- lm(Balance~., data = credit_data_training)
+summary(lin.reg)
+```
+
+
+## Recommended Exercise 6
+
+1. Apply Lasso regression to the Credit dataset. 
+
+```{r}
+lasso.mod <- glmnet(x, y, alpha = 1, lambda = grid)
+```
+
+2. Compare the results with the standard linear regression and the Ridge regression. 
+
+
+## Recommended Exercise 7
+
+We should use ... principal components for the Credit dataset because of the R-output below.
+
+\textcolor{red}{This depends on how much variance one wants to explain vs. how much one wants to reduce the dimensionality of the data. }
+
+```{r}
+x <- model.matrix(Balance~., data = Credit)[, -1]
+pca <- prcomp(x,scale=TRUE, center= TRUE)
+print(pca)
+summary(pca)
+plot(pca, type = "l")
+```
+
+\textcolor{red}{LF does not have ID as a column, why? Something I missed earlier?}
+
+## Recommended exercise 8
+
+Apply PCR on the Credit dataset and compare the results with the previous methods used in this module. 
+
+```{r}
+library(pls)
+set.seed(2)
+pcr.fit <- pcr(Balance~., data=credit_data_training, scale = TRUE, validation = "CV")
+summary(pcr.fit)
+
+validationplot(pcr.fit, val.type = "MSEP")
+
+pcr.pred <- predict(pcr.fit, credit_data_testing, ncomp = 7)
+```
+
+
+## Recommended exercise 9
+
+Apply PLS on the Credit dataset and compare the results with the previous methods used in this module. 
+
+```{r}
+set.seed(2)
+pls.fit <- plsr(Balance~., data = credit_data_training, scale = TRUE, validation = "CV")
+summary(pls.fit)
+validationplot(pls.fit)
+```
+
