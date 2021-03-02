@@ -27,7 +27,7 @@ $$
 \begin{split}
 &X\hat{\boldsymbol{\beta}} = \text{proj}_{\text{Col}(X)}\boldsymbol{Y} \\
 &\implies \boldsymbol{Y} - X\hat{\boldsymbol{\beta}} \in (\text{Col}(X)) ^{\bot}\\
-&\implies \boldsymbol{v}(\boldsymbol{Y} - X\hat{\boldsymbol{\beta}}) = 0, \forall \boldsymbol{v} \in \text{Col}(X)\\
+&\implies \boldsymbol{v}^T(\boldsymbol{Y} - X\hat{\boldsymbol{\beta}}) = 0, \forall \boldsymbol{v} \in \text{Col}(X)\\
 &\implies X^T(\boldsymbol{Y} - X\hat{\boldsymbol{\beta}}) = 0 \\
 &\implies X^T\boldsymbol{Y} = X^TX\hat{\boldsymbol{\beta}}.
 \end{split}
