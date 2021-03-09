@@ -1,0 +1,324 @@
+---
+title: "ExampleBostonDataset"
+author: "alexaoh"
+date: "3/9/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Example: Boston data set 
+
+\textcolor{red}{(Taken from Stefanie Muff's lecture on Trees: Module 8 in TMA4268, spring 2021). Thank you! ;))}
+
+\tiny
+(ISLR book, Sections 8.3.2 to 8.3.4.)
+
+\normalsize
+Remember the data set: The aim is to predict the median value of owner-occupied homes (in 1000\$)
+
+We first run through trees, bagging and random forests - before arriving at boosting. 
+
+\scriptsize
+
+
+```{r}
+library(MASS)
+set.seed(1)
+train = sample(1:nrow(Boston), nrow(Boston)/2)
+head(Boston)
+```
+
+---
+
+### Regression tree
+$~$
+
+\scriptsize
+```{r}
+library(tree)
+tree.boston=tree(medv~.,Boston,subset=train,control = tree.control(nrow(Boston), mindev = 0.005)) 
+summary(tree.boston)
+```
+
+---
+
+\scriptsize
+```{r boston1, echo=TRUE, fig.width=7, fig.height=5,fig.align = "center",out.width='70%'}
+plot(tree.boston)
+text(tree.boston,pretty=0)
+```
+
+\normalsize
+Remember: 
+
+* The `tree()` function has a built-in default stopping criterion. 
+* You can change this with the `control` option, for example by setting `control = tree.control(mincut = 2, minsize = 4, mindev = 0.001)`. Here we used `mindev=0.005`. 
+
+---
+
+### Need to prune?
+$~$
+
+\scriptsize
+
+```{r boston2, echo=TRUE, fig.width=8, fig.height=6,fig.align = "center",out.width='70%'}
+cv.boston=cv.tree(tree.boston)
+plot(cv.boston$size,cv.boston$dev,type='b')
+```
+
+\normalsize
+
+\vspace{2mm}
+
+It looks like a tree with 6 leaves would work well.
+
+---
+
+### Pruning
+\vspace{1mm}
+
+So we are pruning to a 6-node tree here:
+
+\scriptsize
+
+```{r boston3, echo=TRUE, fig.width=8, fig.height=6,fig.align = "center",out.width='70%'}
+prune.boston=prune.tree(tree.boston,best=6)
+plot(prune.boston)
+text(prune.boston,pretty=0)
+```
+
+---
+
+### Test error for full tree
+
+$~$
+
+We calculate the test error for the pruned tree:
+
+\vspace{2mm}
+
+\scriptsize
+```{r boston4, echo=TRUE, fig.width=5, fig.height=4,fig.align = "center",out.width='50%'}
+yhat=predict(prune.boston,newdata=Boston[-train,])
+boston.test=Boston[-train,"medv"]
+plot(yhat,boston.test, pch=20)
+abline(0,1)
+```
+
+```{r}
+mean((yhat-boston.test)^2) # Calculate test MSE. 
+```
+
+---
+
+### Bagging
+
+$~$
+
+\small
+Remember: For bagging you can use the `randomForest()` function, but include all variables (here `mtry=13`).
+
+\vspace{2mm}
+
+\scriptsize
+```{r}
+library(randomForest)
+set.seed(1)
+bag.boston=randomForest(medv~.,data=Boston,subset=train,mtry=13,importance=TRUE)
+bag.boston
+```
+
+<!-- \small -->
+<!-- Error rate for the test set: -->
+
+<!-- \scriptsize -->
+<!-- ```{r} -->
+<!-- mean((yhat.bag-boston.test)^2) -->
+<!-- ``` -->
+
+---
+
+### Test error for bagged tree
+
+$~$
+
+
+\scriptsize
+```{r boston5, echo=TRUE, fig.width=5, fig.height=4,fig.align = "center",out.width='50%'}
+yhat.bag = predict(bag.boston,newdata=Boston[-train,])
+plot(yhat.bag, boston.test,pch=20)
+abline(0,1)
+```
+
+\vspace{2mm}
+
+\scriptsize
+```{r}
+bag.boston=randomForest(medv~.,data=Boston,subset=train,mtry=13,ntree=25)
+yhat.bag = predict(bag.boston,newdata=Boston[-train,])
+mean((yhat.bag-boston.test)^2)
+```
+
+---
+
+### Random forest
+
+$~$
+
+Let's go from bagging to a random forest\footnote{n.b., why are we now speaking of a forest and no longer of a tree?}, using 6 randomly selected predictors for each tree:
+
+\vspace{2mm}
+
+
+\scriptsize
+```{r}
+set.seed(1)
+rf.boston=randomForest(medv~.,data=Boston,subset=train,mtry=6,importance=TRUE)
+yhat.rf = predict(rf.boston,newdata=Boston[-train,])
+mean((yhat.rf-boston.test)^2)
+```
+
+\vspace{2mm}
+\normalsize
+It's interesting to see how the prediction error further decreased with respect to simple bagging.
+
+---
+
+### Variable importance
+$~$
+
+\scriptsize
+
+```{r}
+importance(rf.boston)
+```
+
+\normalsize
+
+Interpretation?
+
+---
+
+And the variable importance plots
+
+\scriptsize
+```{r boston6, echo=TRUE, fig.width=6, fig.height=4,fig.align = "center",out.width='80%'}
+varImpPlot(rf.boston,main="")
+```
+
+\normalsize
+To understand what this means, please check again the meaning of the variables by typing `?Boston`. 
+
+
+---
+
+### Boosting 
+
+\vspace{2mm}
+
+And finally, we are boosing the Boston trees! We boost with 5000 trees and allow the interaction depth (number of splits per tree) to be of degree 4:
+
+\vspace{2mm}
+
+\scriptsize
+
+```{r}
+library(gbm)
+set.seed(1)
+boost.boston=gbm(medv~.,data=Boston[train,],
+                 distribution="gaussian",
+                 n.trees=5000,interaction.depth=4)
+summary(boost.boston,plotit=FALSE)
+```
+
+---
+
+**Partial dependency plots - integrating out other variables **
+
+\small
+`rm` (number of rooms) and `lstat` (% of lower status population) are the most important predictors. Partial dependency plots show the effect of individual predictors, integrated over the other predictors see @hastie_etal2009, Section 10.13.2.
+
+\vspace{2mm}
+
+\scriptsize
+
+```{r boston7, echo=TRUE, fig.width=5, fig.height=3,fig.align = "center",out.width='40%'}
+plot(boost.boston,i="rm",ylab="medv")
+plot(boost.boston,i="lstat",ylab="medv")
+```
+
+---
+
+**Prediction on test set**
+
+* Calculate the MSE on the test set, first for the model with $\lambda=0.001$ (default), then with $\lambda=0.2$.
+
+* We could have done cross-validation to find the best $\lambda$ over a grid, but it seems not to make a big difference.
+
+$~$
+
+\scriptsize
+
+```{r}
+yhat.boost=predict(boost.boston,newdata=Boston[-train,],n.trees=5000)
+mean((yhat.boost-boston.test)^2)
+```
+
+\vspace{2mm}
+
+```{r}
+boost.boston=gbm(medv~.,data=Boston[train,],distribution="gaussian",
+                 n.trees=5000,interaction.depth=4,shrinkage=0.2,verbose=F)
+yhat.boost=predict(boost.boston,newdata=Boston[-train,],n.trees=5000)
+mean((yhat.boost-boston.test)^2)
+```
+
+---
+
+\scriptsize
+
+```{r boston8, echo=TRUE, fig.width=5, fig.height=4,fig.align = "center",out.width='60%'}
+plot(yhat.boost,boston.test,pch=20)
+abline(0,1)
+```
+
+
+
+
+<!-- # Summing up with feedback -->
+
+<!-- Please give me your opinion about -->
+
+<!-- * The "muddiest" (unclearest) point that you have in Module 8. -->
+
+<!-- * The main points you *think* you learned in Module 8. -->
+
+<!-- I can catch up on these points next Friday. -->
+
+<!-- Link to google form: -->
+
+<!-- [https://docs.google.com/forms/d/e/1FAIpQLSfHDlHGbO1FxR3JcSxIzg5cIJKnbNrBYu7xXOlLjObHnFSQZg/viewform?usp=sf_link]( -->
+<!-- https://docs.google.com/forms/d/e/1FAIpQLSfHDlHGbO1FxR3JcSxIzg5cIJKnbNrBYu7xXOlLjObHnFSQZg/viewform?usp=sf_link) -->
+
+
+
+<!-- --- -->
+
+
+ 
+# Further reading
+
+* [Videoes on YouTube by the authors of ISL, Chapter 8](https://www.youtube.com/playlist?list=PL5-da3qGB5IB23TLuA8ZgVGC8hV8ZAdGh), and corresponding [slides](https://lagunita.stanford.edu/c4x/HumanitiesScience/StatLearning/asset/trees.pdf).
+
+* [Solutions to exercises in the book, chapter 8](https://rstudio-pubs-static.s3.amazonaws.com/65564_925dfde884e14ef9b5735eddd16c263e.html)
+
+
+
+---
+
+# References
+
+\tiny
