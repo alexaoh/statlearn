@@ -14,35 +14,39 @@ showsolB<-TRUE
 library(knitr)
 opts_chunk$set(tidy.opts=list(width.cutoff=68),tidy=TRUE)
 knitr::opts_chunk$set(echo = TRUE,eval = TRUE, tidy=TRUE,message=FALSE,warning=FALSE,strip.white=TRUE,prompt=FALSE,
-                      cache=TRUE, size="scriptsize", comment = "#>")
+                      cache=TRUE, size="scriptsize", comment = "#>", fig.align = "center")
 ```
 
 ## Problem 1 -- Theoretical
 
 a) Provide a detailed explanation of the algorithm that is used to fit a regression tree. What is different for a classification tree? 
 
-**Answer:** Algorithm: The prediction space is splitted in such a way that the RSS across all regions is smallest \textcolor{red}{(More details will follow, with pruning etc!)}. The difference for a classification tree is the criterion used when making binary splits. In the regression setting the RSS is used, since we have a qualitative response. On the contrary, when building a classification tree, the classification error rate could perhaps be used, i.e. the fraction of training observations that do not belong to the majority class in each region. However, this criterion is not sufficiently sensitive when building classification trees, which is the reason to why two other criterion are used in practice: The Gini-index or cross-entropy. The Gini-index is a measure of the total variance across the $K$ classes. Cross-entropy is defined differently, but is quite similar numerically to the Gini-index. Also, the Gini-index and Cross-entropy are differentiable, which may be useful in numerical optimization. 
+**Answer:** Algorithm: The prediction space is split in such a way that a criterion function across all regions is smallest. This criterion function is different depending on if we are building a regression tree (RSS) or a classification tree (Gini-index or Cross-entropy). When this split into non-overlapping regions of the predictor space is done, we make the same prediction for each observation that falls into the same region - the mean of the responses for the training observations that fall into the region (regression tree) or some sort of majority vote (classification tree). How are these splits found? For a regression tree, we could try to minimize $\text{RSS}=\sum_{j=1}^J \sum_{i \in R_j}(y_i-\hat{y}_{R_j})^2$, where $\hat{y}_{R_j}$ is the mean response for the training data in region $j$ (and the predicted value for new observations that fall into region $j$). However, an exhaustive search over all partitions of the predictor space is computationally infeasible. Therefore, we use a greedy approach called Recursive Binary Splitting: We find a split in each step which minimizes RSS, where each single split in each step only depends on one of the predictors. In the next step, we split only one of the previously split regions. This algorithm is continued until the stopping criterion of choice is reached. The predictive performance of a tree can be improved by pruning, i.e. Cost Complexity Pruning. This is done by growing a very large tree and then pruning the tree back to obtain a subtree. We try to find a tree that minimizes $C_{\alpha}(T)=Q(T)+\alpha |T|$, where $Q(T)$ is our cost function and $|T|$ is the number of terminal nodes in subtree $T$. The parameter $\alpha$ penalizes larger trees, i.e. with more leaves. For regression trees we choose the RSS for the subtree, as defined above. as the cost function $Q(T)$. We can use $K$-fold cross-validation to find the optimal value of $\alpha$. 
 
-Also, the prediction in classification is done with a majority vote or by estimation of the probability that the observation belongs to each class (proportion of points in each region belongs to each class), instead of the mean. 
+The first difference for a classification tree is the criterion used when making binary splits. In the regression setting the RSS is used, since we have a quantitative response. On the contrary, when building a classification tree, the classification error rate could perhaps be used, i.e. the fraction of training observations that do not belong to the majority class in each region. However, this criterion is not sufficiently sensitive when building classification trees, which is the reason behind why two other criteria are used in practice: The Gini-index $G=\sum_{k=1}^K \hat{p}_{jk}(1-\hat{p}_{jk})$ or cross-entropy $D=-\sum_{k=1}^K \hat{p}_{jk}\log\hat{p}_{jk}$. These two metrics are measures of node impurity, which we want to minimize in our tree. The Gini-index is a measure of the total variance across the $K$ classes. Cross-entropy is defined differently, but is quite similar numerically to the Gini-index. Also, the Gini-index and Cross-entropy are differentiable, which may be useful in numerical optimization. Moreover, the second difference for a classification tree is that predictions in classification trees are done with a majority vote (in each region) or by estimation of the probability that the observation belongs to each class (proportion of points in each region that belong to each class), instead of the mean. Still, the class with the highest estimated probability will get the classification of the new observation. 
 
 b) What are the advantages and disadvantages of regression and classification trees?
 
-**Advantages:** Interpretability (nice graphical display), close mirror of human decision-making, easily explained concept, handling of qualitative predictors without dummy variables. 
+**Advantages:** Interpretability (nice graphical display, when sufficiently small), closer mirror of human decision-making, easily explained concept, handling of qualitative predictors without dummy variables, automatically implements interactions, automatically selects variables. 
 
-**Disadvantages:** Generally has worse predictive accuracy compared to other classical methods. 
+**Disadvantages:** Generally has worse predictive accuracy compared to other classical methods (high variance). Hence, a small change in data may cause a large change in the final estimated tree. 
 
 c) What is the idea behind bagging and what is the role of bootstap? How do random forests improve that idea?
 
-**Answer:** The idea behind bagging is to make use of several consecutive bootstrap samples to build trees. In the end, the predictions from each of these trees are averaged, in order to reduce the variance of the predictions. Random forests improve on that idea by restricting the amount of predictors to be chosen from when splitting the regions, i.e. when building the trees. In this manner the trees become less correlated (since more of the trees are potentially different), which may lead to a further decrease in variance of the predictions. 
+**Answer:** The idea behind bagging is to make use of several consecutive bootstrap samples to build many trees. on each of these samples. In the end, the predictions from each of these trees are averaged, in order to reduce the variance of the predictions. Random forests improve on that idea by restricting the amount of predictors that may be chosen by the algorithm when splitting the regions, i.e. when building the trees. In each split, a random selection of predictors may be used as options to produce the split (typically $\sqrt{p}$ predictors in classification anf $\frac{p}3$ predictors in regression). In this manner the trees become less correlated (since more of the trees are potentially different), which may lead to a further decrease in variance of the predictions. 
 
 d) What is an out-of bag (OOB) error estimator and what percentage of observations are included in an OOB sample? (Hint: The result from RecEx5-Problem 4c can be used)
 
-**Answer:** An OOB error estimator is the average (for regression) or the majority vote (for classification) among the predicted response based on the trees where the given predictor is OOB, i.e. the observation was not used when building a tree using the bootstrap sample. About $\frac13$ of the observations are included in the OOB-sample, because, as the result from RecEx5-Problem 4c shows, the probability that a given observation is a part of a bootstrap sample is $\approx \frac23$. 
+**Answer:** An OOB error estimator is the average (for regression) or the majority vote (for classification) among the predicted response based on the trees where the given predictor is OOB, i.e. the observation was not used when building a tree using the bootstrap sample. About $\frac13$ of the observations are included in the OOB-sample, because, as the result from RecEx5-Problem 4c shows, the probability that a given observation is in a bootstrap sample is $\approx \frac23$. Hence, the observations that are left out of each bootstrap sample may be used as "testing" data on the tree that was built with that bootstrap sample. This means that for $B$ bootstrap samples, observation $i$ will be outside the bootstrap sample in $\approx \frac{B}{3}$ of the fitted trees. The out-of-bag error for observation $i$ can be calculated by taking the average (regression) or the majority vote (classification) of all the $\approx \frac{B}3$ predictions on each tree.  
 
 e) Bagging and Random Forests typically improve the prediction accuracy of a single tree, but it can be difficult to interpret, for example in terms of understanding which predictors are how relevant. 
 How can we evaluate the importance of the different predictors for these methods? 
 
-**Answer:**
+**Answer:** We can make *variable importance plots*, which show the relative importance of the different predictors when making predictions. In general, there are two different types of variable importance plots. The first it based on decrease in node impurity and the second is based on randomization. 
+
+Variable importance based on node impurity relates to total decrease in the node impurity over split for a predictor. For regression trees, the total amount the RSS is decreased due to splits for each predictor is recorded and averaged over all the trees used when bagging or in random forests. For classification trees, the importance is the mean decrease in the Gini-index by splits of a predictor, over all trees. 
+
+Variable importance based on randomization is calculated using the OOB sample. Computations are carried out for one bootstrap sample at a time. Each time a tree is grown, the OOB sample is used to test the predictive power of the tree. For one predictor at a time, the OOB observations are permuted and the new OOB error is calculated. A large increase in this error (a large decrease in predictive performance) suggests that the predictor is of importance. The difference between the OOB error before and after the permutation is averaged over all trees and normalized by the standard deviation of the differences, in order to produce the final variable importance ratings based on randomization. 
 
 ## Problem 2 -- Regression (Book Ex. 8)
 
@@ -63,12 +67,12 @@ Carseats.test = Carseats[-train, ]
 
 b) Fit a regression tree to the training set using the default parameters for the stopping criterion. Plot the tree, and interpret the results. What test MSE do you obtain?
 
-```{r}
+```{r, fig.width=10, fig.height=8,out.width='70%'}
 library(tree)
 tree.mod = tree(Sales~., data = Carseats.train)
 summary(tree.mod)
 plot(tree.mod)
-text(tree.mod)
+text(tree.mod, pretty = 0)
 
 # Calculate test MSE.
 yhat <- predict(tree.mod, newdata = Carseats.test)
@@ -76,61 +80,99 @@ mse <- mean((yhat - Carseats.test$Sales)^2)
 mse
 ```
 
-The results are very hard to interpret because of the relatively "bushy" tree. 
+The results are hard to interpret in a hurry because the tree is relatively "bushy". 
 
 c) Use cross-validation in order to determine an optimal level of tree complexity. Does pruning the tree improve the test MSE?
 
-```{r, eval=F, echo=T}
+```{r}
 set.seed(4268)
-cv.Carseats  = cv.tree(tree.mod) 
-tree.min =  which.min(cv.Carseats$dev)
+cv.Carseats = cv.tree(tree.mod) 
+tree.min = which.min(cv.Carseats$dev)
 best = cv.Carseats$size[tree.min]
 plot(cv.Carseats$size, cv.Carseats$dev, type = "b")
 points(cv.Carseats$size[tree.min], cv.Carseats$dev[tree.min], col = "red", pch = 20)
+```
 
+```{r, fig.width=10, fig.height=8,out.width='70%'}
+# Despite best = 16, we choose best = 11, since it is smaller and almost as good. 
 k.best.tree <- prune.tree(tree.mod, best = 11)
-summary(k.best.tree)
 plot(k.best.tree)
 text(k.best.tree, pretty= 0)
 
 # Calculate test MSE.
 yhat2 <- predict(k.best.tree, newdata = Carseats.test)
-mse2 <- mean((yhat - Carseats.test$Sales)^2)
+mse2 <- mean((yhat2 - Carseats.test$Sales)^2)
 mse2
-
 ```
+
+
+Hence, pruning slightly improves the test MSE. 
 
 d) Use the bagging approach with 500 trees in order to analyze the data. What test MSE do you obtain? Use the `importance()` function to determine which variables are most important.
 
 **R-hints**
 
-```{r, eval=F, echo=T}
+```{r}
 library(randomForest)
 dim(Carseats)
-bag.Carseats = randomForest(Sales~., ... , ntree = 500, importance = TRUE)
+# mtry = 10 in order to consider all` predictors in each split --> bagging. 
+bag.Carseats = randomForest(Sales~., data = Carseats.train, mtry = 10, ntree = 500, importance = TRUE)
+yhat.bag <- predict(bag.Carseats, newdata = Carseats.test)
+mse3 <- mean((yhat.bag - Carseats.test$Sales)^2)
+mse3
+importance(bag.Carseats)
+varImpPlot(bag.Carseats, main = "")
 ```
+
+It is apparent that the test MSE is reduced quite a bit. `ShelveLoc` and `Price` give the largest decrease in node impurity and in MSE (both the variable imporance metrics agree on these two predictors). The rest of the variables give rise to slight disagreement between the two metrics. 
 
 e) Use random forests and to analyze the data. Include 500 trees and select 3 variables for each split. What test MSE do you obtain? Use the `importance()` function to determine which variables are most important. Describe the effect of m, the number of variables considered at each split, on the error rate obtained.
 
-**R-hints**
-
-```{r, eval=F, echo=T}
-rf.Carseats = randomForest(Sales~., ... , mtry = 3, ntree = 500, importance = TRUE)
+```{r}
+rf.Carseats = randomForest(Sales~., data = Carseats.train, mtry = 3, ntree = 500, importance = TRUE)
+yhat.rf <- predict(rf.Carseats, newdata = Carseats.test)
+mse4 <- mean((yhat.rf - Carseats.test$Sales)^2)
+mse4
+importance(rf.Carseats)
+varImpPlot(rf.Carseats, main = "")
 ```
 
+The test MSE for a random forest with $m = 3$ is slightly higher than that of bagging, but it still lower than for pruning one tree. 
 
 f) Finally use boosting with 500 trees, an interaction depth $d=4$ and a shrinkage factor $\lambda=0.1$ (default in the `gbm()` function) on our data. Compare the MSE to all other methods.
 
-**R-hints**
-
-```{r, eval=F, echo=T}
+```{r}
 library(gbm)
-r.boost=gbm(Sales~., Carseats.train,
-                 distribution=...,
-                 n.trees= ... ,interaction.depth= ..., shrinkage = ...)
+r.boost = gbm(Sales ~ ., Carseats.train,
+                 distribution = "gaussian",
+                 n.trees = 500, interaction.depth = 4, shrinkage = 0.1)
+yhat.r.boost <- predict(r.boost, newdata = Carseats.test, n.trees = 500)
+mse5 <- mean((yhat.r.boost - Carseats.test$Sales)^2)
+mse5
 ```
 
+The test MSE is further decreased when using boosting. 
+
 g) What is the effect of the number of trees (`ntree`) on the test error? Plot the test MSE as a function of `ntree` for both the bagging and the random forest method.
+
+```{r}
+# Remove Sales from predictors.
+train.predictors <-  Carseats.train[, -1]
+test.predictors <-  Carseats.test[, -1]
+
+# Make list of responses. 
+Y.train <-  Carseats.train[, 1]
+Y.test <-  Carseats.test[, 1]
+
+bag.Car <- randomForest(train.predictors, y = Y.train, xtest = test.predictors, ytest = Y.test, mtry = 10, ntree = 800)
+rf.Car <- randomForest(train.predictors, y = Y.train, xtest = test.predictors, ytest = Y.test, mtry = 3, ntree = 800)
+
+plot(1:800, bag.Car$test$mse, col = "blue", type = "l", xlab = "Number of Trees",ylab = "Test MSE", ylim =c(2, 2.8))
+lines(1:800, rf.Car$test$mse, col = "green")
+legend("topright",c("m = p", "m = sqrt(p)"), col =c("blue", "green"), cex = 1,lty = 1)
+```
+
+We can see that $B = 500$ seems to be a reasonable choice, since the testMSE is relatively stable from thereon out. 
 
 
 ## Problem 3 -- Classification
@@ -139,6 +181,7 @@ In this exercise you are going to implement a spam filter for e-mails by using t
 ```{r}
 library(kernlab)
 data(spam)
+dim(spam)
 ```
 Each e-mail is classified by `type` ( `spam` or `nonspam`), and this will be the response in our model. In addition there are 57 predictors in the dataset. The predictors describe the frequency of different words in the e-mails and orthography (capitalization, spelling, punctuation and so on).
 
@@ -146,16 +189,134 @@ a) Study the dataset by writing `?spam` in R.
 
 b) Create a training set and a test set for the dataset. (Hint: Use 70% of the data as training set and the rest 30% as testing set)
 
+```{r}
+set.seed(4268)
+n = nrow(spam)
+train = sample(1:n, 0.7*n, replace = F)
+test = (1:n)[-train]
+spam.train = spam[train, ]
+spam.test = spam[-train, ]
+```
+
+
 c) Fit a tree to the training data with `type` as the response and the rest of the variables as predictors. Study the results by using the `summary()` function. Also create a plot of the tree. How many terminal nodes does it have?
-  
+
+```{r, fig.width=10, fig.height=8,out.width='70%'}
+tree.spam <- tree(type ~ ., data = spam.train, split = "deviance") # Using cross entropy as criterion. 
+summary(tree.spam)
+plot(tree.spam)
+text(tree.spam, pretty = 0)
+```
+
+The tree has 14 terminal nodes. 
+
 d) Predict the response on the test data. What is the misclassification rate?
+
+```{r}
+library(caret)
+yhat.spam <- predict(tree.spam, newdata = spam.test, type = "class")
+
+confMat <- confusionMatrix(yhat.spam, reference = spam.test$type)$table
+confMat
+
+# This produces the same as the table above.
+#matrix <- table(yhat.spam, spam.test$type)
+#matrix
+
+misclass.rate <- 1-sum(diag(confMat))/sum(confMat[1:2,1:2])
+misclass.rate
+```
+
   
 e) Use the `cv.tree()` function to find an optimal tree size. Prune the tree according to the optimal tree size by using the `prune.misclass()` function and plot the result. Predict the response on the test data by using the pruned tree. What is the misclassification rate in this case?
-  
+
+```{r}
+cv.spam <- cv.tree(tree.spam, FUN = prune.misclass)
+plot(cv.spam$size, cv.spam$dev, type = "b", xlab = "Terminal Nodes", ylab = "Misclassifications")
+data.frame(cv.spam$size, cv.spam$dev) # Will use size = 6 based on this.
+```
+
+```{r, fig.width=10, fig.height=8,out.width='70%'}
+pruned.spam <- prune.misclass(tree.spam, best = 6)
+plot(pruned.spam)
+text(pruned.spam)
+
+yhat.pruned.spam <- predict(pruned.spam, newdata = spam.test, type = "class")
+
+confmatrix <- table(yhat.pruned.spam, spam.test$type)
+confmatrix
+
+misclass.rate2 <- 1-sum(diag(confmatrix))/sum(confmatrix)
+misclass.rate2
+```
+
+
+The misclassification rate is higher for the pruned tree with 8 terminal nodes. 
+
 f) Create a decision tree by using the bagging approach with $B=500$. Use the function `randomForest()` and consider all of the predictors in each split. Predict the response on the test data and report the misclassification rate.
+
+```{r}
+dim(spam)
+bag.spam = randomForest(type~., data = spam.train, mtry = 57, ntree = 500, importance = TRUE)
+yhat.bag.spam <- predict(bag.spam, newdata = spam.test)
+
+confmatrix2 <- table(yhat.bag.spam, spam.test$type)
+confmatrix2
+
+misclass.rate3 <- 1-sum(diag(confmatrix2))/sum(confmatrix2)
+misclass.rate3
+
+importance(bag.spam)
+varImpPlot(bag.spam, main = "")
+```
+
+The misclassification rate is the lowest thus far among the methods used. 
 
 g) Apply the `randomForest()` function again with 500 trees, but this time consider only a subset of the predictors in each split. This corresponds to the random forest-algorithm. Study the importance of each variable by using the function `importance()`. Are the results as expected based on earlier results? Again, predict the response for the test data and report the misclassification rate.
 
+```{r}
+# Using \sqrt(57) \approx 7.5 \approx 8 predicotrs in each split. 
+rf.spam = randomForest(type~., data = spam.train, mtry = 8, ntree = 500, importance = TRUE)
+yhat.rf.spam <- predict(rf.spam, newdata = spam.test)
+
+confmatrix3 <- table(yhat.rf.spam, spam.test$type)
+confmatrix3
+
+misclass.rate4 <- 1-sum(diag(confmatrix3))/sum(confmatrix3)
+misclass.rate4
+
+importance(rf.spam)
+varImpPlot(rf.spam, main = "")
+```
+
+
+The misclassification rate is, again, the lowest thus far among the methods used (however, the decrease is not large compared to the bagging results). This is as expected, since random forests reduce the correlation between the trees. 
+
 h) Use `gbm()` to construct a boosted classification tree using 5000 trees, an interaction depth of $d=3$ and a shrinkage parameter of $\lambda=0.001$. Predict the response for the test data and report the misclassification rate.
 
-i) Compare the misclassification rates in d-h. Which method gives the lowest misclassification rate for the test data? Are the results as expected?
+```{r}
+# The Bernoulli distribution of gbm only permits 0/1. 
+spamboost <-  spam
+spamboost$type <- c()
+spamboost$type[spam$type=="spam"] <-  1
+spamboost$type[spam$type=="nonspam"] <-  0
+
+spam.boost = gbm(type ~ ., spamboost[train, ],
+                 distribution = "bernoulli",
+                 n.trees = 5000, interaction.depth = 3, shrinkage = 0.001)
+
+yhat.spam.boost <- predict(spam.boost, newdata = spamboost[-train, ], n.trees = 5000,
+                      distribution = "bernoulli", type = "response")
+
+yhat.spam.boost <- ifelse(yhat.spam.boost > 0.5, 1, 0) # Transform probabilities to 0/1. 
+confmatrix4 <- table(yhat.spam.boost, spam.test$type)
+confmatrix4
+
+misclass.rate5 <- 1-sum(diag(confmatrix4))/sum(confmatrix4)
+misclass.rate5
+```
+
+
+i) Compare the misclassification rates in d-h. Which method gives the lowest misclassification rate for the test data? Are the results as expected? 
+
+We get lower misclassification rates for the test data for bagging, random forests and boosting, compared to pruning, which is as expected. Furthermore, all methods seem to agree that the three most important predictors are `charExclamation`, `remove` and `charDollar`. 
