@@ -72,7 +72,7 @@ dat=data.frame(x,y=as.factor(y))
 
 ```{r}
 library(e1071)
-svmfit=svm(y~., data = dat, kernel="linear",cost=0.10,scale=F) # E.g. cost 0.1
+svmfit=svm(y~., data = dat, kernel="linear",cost=10,scale=F) # E.g. cost 10
 ```
 
 The following function may help you to generate a grid for plotting:
@@ -91,10 +91,18 @@ make.grid = function(x, n =75){
 x <- as.matrix(dat[, c("X1", "X2")]) # Retrieve only the predictors X1 and X2. 
 xgrid <- make.grid(x) # Make the grid with the supplied function.  
 preds <- predict(svmfit, xgrid) # Make predictions on grid of testpoints. 
-plot(xgrid, preds, col = c("red", "blue")[as.numeric(preds)], cex = 0.2, pch = 20) 
+plot(xgrid, col = c("red", "blue")[as.numeric(preds)], cex = 0.2, pch = 20) 
 ```
 
 (b) On the same plot add the training points and indicate the support vectors.
+
+```{r}
+plot(xgrid, col = c("red", "blue")[as.numeric(preds)], cex = 0.2, pch = 20)
+points(x, pch = 16, col = c("red", "blue")[as.numeric(dat[,3])])
+points(x[svmfit$index, ], pch = 5, cex = 2)
+legend(1.72,2.3, legend = c("Train", "Support Vec."), pch = c(16, 5))
+```
+
 
 (c) The solutions to the SVM optimization problem is given by 
 
@@ -104,16 +112,31 @@ $$
 where $S$ is the set of the support vectors. From the `svm()` function we cannot extract $\hat \beta$, but instead we have access to $\text{coef}_i = \hat\alpha_i y_i$, and $\hat\beta_0$ is given as $rho.$ For more details see 
 [here](https://cran.r-project.org/web/packages/e1071/vignettes/svminternals.pdf).
 
-Calculate the coeficients $\hat\beta_0, \hat\beta_1$ and $\hat\beta_2.$ Then add the decisision boundary and the margins using the function `abline()` on the plot from (b). 
+Calculate the coefficients $\hat\beta_0, \hat\beta_1$ and $\hat\beta_2.$ Then add the decisision boundary and the margins using the function `abline()` on the plot from (b). 
+
+```{r}
+beta0 <- svmfit$rho
+coefs <- svmfit$coefs
+beta <- t(coefs)%*%x[svmfit$index, ]
+plot(xgrid, col = c("red", "blue")[as.numeric(preds)], cex = 0.2, pch = 20)
+points(x, pch = 16, col = c("red", "blue")[as.numeric(dat[,3])])
+points(x[svmfit$index, ], pch = 5, cex = 2)
+legend(1.72,2.3, legend = c("Train", "Support Vec."), pch = c(16, 5))
+
+# Plot decision boundary.
+abline(beta0/beta[2], -beta[1]/beta[2], lwd = 2)
+
+# Plot upper and lower margin.
+abline((beta0-1)/beta[2], -beta[1]/beta[2], lty = 2)
+abline((beta0+1)/beta[2], -beta[1]/beta[2], lty = 2)
+```
 
 
 ## Problem 4
 
 Now we fit an svm model with radial kernel to the following data taken from @ESL. Use cross-validation to find the best set of tuning parameters (cost $C$ and $\gamma$). Using the same idea as in Problem 4a) plot the non-linear decision boundary, and add the training points. Furthermore if you want to create the decision boundary curve you can use the argument `decision.values=TRUE` in the function predict, and then you can plot it by using the `contour()` function.
 
-**R-hints:**
-
-```{r,eval=TRUE, echo=TRUE,out.width='55%'}
+```{r, out.width='55%'}
 load(url("https://web.stanford.edu/~hastie/ElemStatLearn/datasets/ESL.mixture.rda"))
 #names(ESL.mixture)
 rm(x,y)
@@ -123,18 +146,20 @@ dat=data.frame(y=factor(y),x)
 ```
 
 To run cross-validation over a grid for $(C,\gamma)$, you can use a two-dimensional list of values in the `ranges` argument:
-```{r,echo=T,eval=F}
-r.cv <- tune(svm,factor(y)~.,data=dat,kernel="...",ranges=list(cost=c(...),gamma=c(...)))
+```{r}
+r.cv <- tune(svm,factor(y)~.,data=dat,kernel="radial",ranges=list(cost=c(0.1, 1, 10, 100, 1000),gamma=c(0.5, 1, 2, 3, 4, 6, 8)))
+bestfit <- r.cv$best.model
 ```
 
 For the plot:
-```{r,echo=T,eval=F}
+```{r}
 xgrid = make.grid(x)
-ygrid=predict(...,xgrid)
+ygrid=predict(bestfit,xgrid)
 plot(xgrid,col=as.numeric(ygrid),pch=20,cex=.2)
 points(x,col=y+1,pch=19)
+
 # decision boundary
-func=predict(...,xgrid,decision.values=TRUE)
+func=predict(bestfit,xgrid,decision.values=TRUE)
 func=attributes(func)$decision
 contour(unique(xgrid[,1]),unique(xgrid[,2]),matrix(func,75,75),
         level=0,add=TRUE) #svm boundary
@@ -148,18 +173,162 @@ This problem involves the OJ data set which is part of the ISLR package.
 
 (a) Create a training set containing a random sample of 800 observations, and a test set containing the remaining observations.
 
+```{r}
+library(ISLR)
+data(OJ)
+set.seed(4268)
+train.indices <- sample(1:nrow(OJ), 800)
+train.data <- OJ[train.indices, ]
+test.data <- OJ[-train.indices, ]
+```
+
+
 (b) Fit a support vector classifier to the training data using `cost=0.01`, with Purchase as the response and the other variables as predictors. Use the `summary()` function to produce summary statistics, and describe the results obtained.
+
+```{r}
+linearOJ <- svm(Purchase~., data = OJ, subset = train.indices, kernel = "linear", cost = 0.01) # Scale = T is default.
+summary(linearOJ)
+```
 
 (c) What are the training and test error rates?
 
+```{r}
+# Training error rates. 
+train.pred <- predict(linearOJ, newdata = train.data)
+conf.table.train <- table(predict=train.pred, true = train.data[, "Purchase"])
+conf.table.train
+train.error.rate <- 1-sum(diag(conf.table.train))/(sum(conf.table.train))
+train.error.rate
+
+# Testing error rates. 
+test.pred <- predict(linearOJ, newdata = test.data)
+conf.table.test <- table(predict=test.pred, true = test.data[, "Purchase"])
+conf.table.test
+test.error.rate <- 1-sum(diag(conf.table.test))/(sum(conf.table.test))
+test.error.rate
+```
+
+
 (d) Use the `tune()` function to select an optimal cost. Consider values in the range 0.01 to 10.
+
+```{r}
+linear.cv <- tune(svm, Purchase~., data = train.data, kernel= "linear", ranges=list(cost = 10^seq(-2, 1, by = 0.25)))
+bestfit.linear.OJ <- linear.cv$best.model
+```
+
 
 (e) Compute the training and test error rates using this new value
 for cost.
 
+```{r}
+# Training error rates. 
+train.pred.best.linear <- predict(bestfit.linear.OJ, newdata = train.data)
+conf.table.train.best.linear <- table(predict=train.pred.best.linear, true = train.data[, "Purchase"])
+conf.table.train.best.linear 
+train.error.rate.best.linear  <- 1-sum(diag(conf.table.train.best.linear ))/(sum(conf.table.train.best.linear ))
+train.error.rate.best.linear 
+
+# Testing error rates. 
+test.pred.best.linear  <- predict(bestfit.linear.OJ, newdata = test.data)
+conf.table.test.best.linear <- table(predict=test.pred.best.linear, true = test.data[, "Purchase"])
+conf.table.test.best.linear 
+test.error.rate.best.linear <- 1-sum(diag(conf.table.test.best.linear ))/(sum(conf.table.test.best.linear ))
+test.error.rate.best.linear 
+```
+
+
 (f) Repeat parts (b) through (e) using a support vector machine with a radial kernel. Use the default value for `gamma`.
+
+```{r}
+radialOJ <- svm(Purchase~., data = OJ, subset = train.indices, kernel = "radial") # Scale = T is default.
+summary(radialOJ)
+
+# Training error rates. 
+train.pred.radial <- predict(radialOJ, newdata = train.data)
+conf.table.train.radial <- table(predict=train.pred.radial, true = train.data[, "Purchase"])
+conf.table.train.radial
+train.error.rate.radial <- 1-sum(diag(conf.table.train.radial))/(sum(conf.table.train.radial))
+train.error.rate.radial
+
+# Testing error rates. 
+test.pred.radial <- predict(radialOJ, newdata = test.data)
+conf.table.test.radial <- table(predict=test.pred.radial, true = test.data[, "Purchase"])
+conf.table.test.radial
+test.error.rate.radial <- 1-sum(diag(conf.table.test.radial))/(sum(conf.table.test.radial))
+test.error.rate.radial
+
+# Tune the model to find the best gamma and cost. 
+radial.cv <- tune(svm, Purchase~., data = train.data, kernel = "radial", 
+                    ranges=list(cost=10^seq(-2, 1, by = 0.25))) # Not tuning gamma. 
+bestfit.radial.OJ <- radial.cv$best.model
+
+# Training error rates for tuned model. 
+train.pred.best.radial <- predict(bestfit.radial.OJ, newdata = train.data)
+conf.table.train.best.radial <- table(predict=train.pred.best.radial, true = train.data[, "Purchase"])
+conf.table.train.best.radial 
+train.error.rate.best.radial  <- 1-sum(diag(conf.table.train.best.radial))/(sum(conf.table.train.best.radial))
+train.error.rate.best.radial 
+
+# Testing error rates for tuned model. 
+test.pred.best.radial  <- predict(bestfit.radial.OJ, newdata = test.data)
+conf.table.test.best.radial <- table(predict=test.pred.best.radial, true = test.data[, "Purchase"])
+conf.table.test.best.radial 
+test.error.rate.best.radial <- 1-sum(diag(conf.table.test.best.radial))/(sum(conf.table.test.best.radial))
+test.error.rate.best.radial
+```
+
 
 (g) Repeat parts (b) through (e) using a support vector machine with a polynomial kernel. Set `degree=2`.
 
+```{r}
+polOJ <- svm(Purchase~., data = OJ, subset = train.indices, kernel = "polynomial", degree = 2) # Scale = T is default.
+summary(polOJ)
+
+# Training error rates. 
+train.pred.pol <- predict(polOJ, newdata = train.data)
+conf.table.train.pol <- table(predict=train.pred.pol, true = train.data[, "Purchase"])
+conf.table.train.pol
+train.error.rate.pol <- 1-sum(diag(conf.table.train.pol))/(sum(conf.table.train.pol))
+train.error.rate.pol
+
+# Testing error rates. 
+test.pred.pol <- predict(polOJ, newdata = test.data)
+conf.table.test.pol <- table(predict=test.pred.pol, true = test.data[, "Purchase"])
+conf.table.test.pol
+test.error.rate.pol <- 1-sum(diag(conf.table.test.pol))/(sum(conf.table.test.pol))
+test.error.rate.pol
+
+# Tune the model to find the best gamma and cost. 
+pol.cv <- tune(svm, Purchase~., data = train.data, kernel = "polynomial", 
+                    ranges=list(cost=10^seq(-2, 1, by = 0.25))) # Not tuning degrees.
+bestfit.pol.OJ <- pol.cv$best.model
+
+# Training error rates for tuned model. 
+train.pred.best.pol <- predict(bestfit.pol.OJ, newdata = train.data)
+conf.table.train.best.pol <- table(predict=train.pred.best.pol, true = train.data[, "Purchase"])
+conf.table.train.best.pol 
+train.error.rate.best.pol  <- 1-sum(diag(conf.table.train.best.pol))/(sum(conf.table.train.best.pol))
+train.error.rate.best.pol 
+
+# Testing error rates for tuned model. 
+test.pred.best.pol  <- predict(bestfit.pol.OJ, newdata = test.data)
+conf.table.test.best.pol <- table(predict=test.pred.best.pol, true = test.data[, "Purchase"])
+conf.table.test.best.pol 
+test.error.rate.best.pol <- 1-sum(diag(conf.table.test.best.pol))/(sum(conf.table.test.best.pol))
+test.error.rate.best.pol
+```
+
+
 (h) Overall, which approach seems to give the best results on this data?
 
+Summarized, we have
+
+```{r}
+msrate = cbind(c(train.error.rate.best.linear, train.error.rate.best.radial,train.error.rate.best.pol),
+               c(test.error.rate.best.linear, test.error.rate.best.radial,test.error.rate.best.pol))
+rownames(msrate) = c("linear", "radial", "polynomial")
+colnames(msrate) = c("msrate.train", "msrate.test")
+msrate
+```
+
+Based on the testing errors, the SVM with polynomial kernel seems to give the best results. 
