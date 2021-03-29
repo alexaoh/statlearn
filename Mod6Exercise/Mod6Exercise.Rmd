@@ -43,7 +43,7 @@ $$
 \text{ln}(\mathcal{L}(\boldsymbol{\beta}, \sigma^2)) = \text{ln}\left(\frac{1}{(2\pi)^{n/2}\sigma^{n/2}}\exp{\left(-\frac12(\boldsymbol{Y} - X\boldsymbol{\beta})^T(\sigma^2I)^{-1}(\boldsymbol{Y} - X\boldsymbol{\beta})\right)}\right), 
 $$
 
-which should be maximized. This is equivalent to minimizing the exponent $(\boldsymbol{Y} - X\boldsymbol{\beta})^T(\boldsymbol{Y} - X\boldsymbol{\beta})= \|\boldsymbol{Y} - X\boldsymbol{\beta}\|_2$, which is what was done in 1. This shows that the MLE is equal to OLS for the standard linear model. 
+which should be maximized. This is equivalent to minimizing the exponent $(\boldsymbol{Y} - X\boldsymbol{\beta})^T(\boldsymbol{Y} - X\boldsymbol{\beta})= \|\boldsymbol{Y} - X\boldsymbol{\beta}\|_2^2$, which is what was done in 1. This shows that the MLE is equal to OLS for the standard linear model. 
 
 ## Recommended Exercise 2
 
@@ -63,7 +63,7 @@ ggpairs(data)
 library(leaps)
 sum(is.na(Credit)) # No data is missing!
 
-credit <- Credit
+credit <- Credit[,-1] # Remove the ID-column. 
 set.seed(1)
 train_perc <- 0.75
 credit_data_train_index <- sample(1:nrow(credit),nrow(credit)*train_perc)
@@ -71,8 +71,9 @@ credit_data_test_index <- (-credit_data_train_index)
 credit_data_training <- credit[credit_data_train_index, ]
 credit_data_testing <- credit[credit_data_test_index, ]
 
+n <- ncol(credit_data_training)-1
 
-regfit.full <- regsubsets(Balance~., data = credit_data_training, nvmax = 12)
+regfit.full <- regsubsets(Balance~., data = credit_data_training, nvmax = n)
 reg.summary <- summary(regfit.full)
 
 # For plotting best points. 
@@ -95,32 +96,218 @@ points(best.bic, reg.summary$bic[best.bic], col = "red", cex = 2, pch = 20)
 
 plot(reg.summary$cp, xlab = "Number of variables", ylab = "Cp", type = "l")
 points(best.cp, reg.summary$cp[best.cp], col = "red", cex = 2, pch = 20)
-
-par(mfrow=c(1,1))
-plot(regfit.full, scale = "Cp") # Not sure how this is useful. 
 ```
+
+```{r, fig.height=7}
+par(mfrow=c(2,2))
+plot(regfit.full, scale = "r2") 
+plot(regfit.full, scale = "adjr2") 
+plot(regfit.full, scale = "bic") 
+plot(regfit.full, scale = "Cp") 
+```
+
+The above plots show which variables are selected in the optimal models, based on each of the different model selection criteria. A black square means that the variable is selected in the model that yields the given value of the criterium shown on the vertical axis. The optimal models are shown in the uppermost row of each of the plots. 
 
 2. Pick the best model using Best Subset Selection according to 10-fold CV.
-\textcolor{red}{This seems like a lot, so is skipped for now!}
+
+```{r, fig.height=3}
+set.seed(1)
+# Create a prediction function to make predictions for regsubsets with id predictors included.
+predict.regsubsets <- function(object,newdata,id,...){
+  form=as.formula(object$call[[2]])
+  mat=model.matrix(form,newdata)
+  coefi=coef(object,id=id)
+  xvars=names(coefi)
+  mat[,xvars]%*%coefi
+}
+
+# Create indices to divide the data between folds.
+k <- 10
+folds <-  sample(1:k, nrow(credit_data_training), replace=TRUE)
+cv.errors <- matrix(NA, k, n, dimnames=list(NULL, paste(1:n)))
+
+# Perform CV.
+for(j in 1:k){
+  bss.obj<- regsubsets(Balance~., data = credit_data_training[folds != j,],nvmax = n)
+  for(i in 1:n){
+    pred <- predict(bss.obj, credit_data_training[folds==j,], id=i) # Skal ikke noe test-data brukes her?
+    cv.errors[j,i] <-  mean((credit_data_training$Balance[folds==j]-pred)^2)
+  }
+}
+
+# Compute mean cv errors for each model size.
+mean.cv.errors=apply(cv.errors,2,mean)
+bss.cv <- which.min(mean.cv.errors) 
+
+# Plot the mean cv errors.
+plot(mean.cv.errors, xlab = "Number of Variables", ylab = "CV", type='b')
+points(bss.cv, mean.cv.errors[bss.cv], col="red", cex=2, pch=20)
+
+par(mfrow=c(1,1))
+
+# Best model, based on amount of variables chosen by cv.
+reg.best <- regsubsets(Balance~., data = credit)
+coef(reg.best, bss.cv) # Selected variables.
+fit <- lm(Balance~Income + Limit + Cards + Student, data = credit_data_training)
+summary(fit)
+
+pred.regbest <- predict(fit, newdata = credit_data_testing)
+mse.regbest <- mean((pred.regbest - credit_data_testing$Balance)^2) # Test Mean Square Error.
+mse.regbest
+
+######### A nicer way of doing it (even though I do not understand this completely!)
+# Create info for lm call
+variables <-names(coef(regfit.full,id=bss.cv))
+variables <- variables[!variables%in%"(Intercept)"]
+bsm_formula <-as.formula(regfit.full$call[[2]])
+bsm_design_matrix <-model.matrix(bsm_formula,credit_data_training)[, variables]
+bsm_data_train <-data.frame(Balance = credit_data_training$Balance, bsm_design_matrix)
+# Fit a standard linear model using only the selected# predictors on the training data
+model_best_subset_method <-lm(formula = bsm_formula, bsm_data_train)
+summary(model_best_subset_method)
+```
+
+3. Compare the results from the previous steps.
 
 ```{r}
+fit.adjr2 <- lm(Balance~Income + Limit + Cards + Age + Gender + Student + Ethnicity, data = credit_data_training)
+pred.adjr2 <- predict(fit.adjr2, newdata = credit_data_testing)
+mse.adjr2 <- mean((pred.adjr2 - credit_data_testing$Balance)^2) # Test Mean Square Error.
+mse.adjr2
+
+fit.BIC <- lm(Balance~Income + Limit + Cards + Student, data = credit_data_training)
+pred.BIC <- predict(fit.BIC, newdata = credit_data_testing)
+mse.BIC <- mean((pred.BIC - credit_data_testing$Balance)^2) # Test Mean Square Error.
+mse.BIC
+
+fit.Cp <- lm(Balance~Income + Limit + Cards + Age + Gender + Student, data = credit_data_training)
+pred.Cp <- predict(fit.Cp, newdata = credit_data_testing)
+mse.Cp <- mean((pred.Cp - credit_data_testing$Balance)^2) # Test Mean Square Error.
+mse.Cp
+
+# Table for MSE from the different models. 
+msrate = rbind(c(mse.adjr2), c(mse.BIC), c(mse.Cp), c(mse.regbest))
+rownames(msrate) = c("Adjr2", "BIC", "Cp", "10 fold CV")
+colnames(msrate) = c("Test MSE")
+msrate
 
 ```
+
+We can see that 10 fold CV and BIC (since they are the same model in this case), give the best test MSE. 
 
 ## Recommended Exercise 4
 1. Select the best model for the Credit dataset using Forward, Backward and Hybrid (sequential replacement) Stepwise Selection.
 
 ```{r}
-regfit.fwd <- regsubsets(Balance~., data = credit_data_training, nvmax = 12, method = "forward")
-summary(regfit.fwd)
-regfit.bwd <- regsubsets(Balance~., data = credit_data_training, nvmax = 12, method = "backward")
-summary(regfit.bwd)
+# Forward selection.
+regfit.fwd <- regsubsets(Balance~., data = credit_data_training, nvmax = n, method = "forward")
+reg.fwd.summary <- summary(regfit.fwd)
+
+# For plotting best points. 
+best.adjr2.fwd <- which.max(reg.fwd.summary$adjr2)
+best.rss.fwd <- which.min(reg.fwd.summary$rss)
+best.cp.fwd <- which.min(reg.fwd.summary$cp)
+best.bic.fwd <- which.min(reg.fwd.summary$bic)
+
+# Plot manually. 
+par(mfrow=c(2,2))
+
+plot(reg.fwd.summary$rss, xlab = "Number of variables", ylab = "RSS", type = "l")
+points(best.rss.fwd, reg.fwd.summary$rss[best.rss.fwd], col = "red", cex = 2, pch = 20)
+
+plot(reg.fwd.summary$adjr2, xlab = "Number of variables", ylab = "Adjusted R2", type = "l")
+points(best.adjr2.fwd, reg.fwd.summary$adjr2[best.adjr2.fwd], col = "red", cex = 2, pch = 20)
+
+plot(reg.fwd.summary$bic, xlab = "Number of variables", ylab = "BIC", type = "l")
+points(best.bic.fwd, reg.fwd.summary$bic[best.bic.fwd], col = "red", cex = 2, pch = 20)
+
+plot(reg.fwd.summary$cp, xlab = "Number of variables", ylab = "Cp", type = "l")
+points(best.cp.fwd, reg.fwd.summary$cp[best.cp.fwd], col = "red", cex = 2, pch = 20)
 ```
 
+The variables selected in Forward Stepwise Selection are
 
-2. Compare with the results obtained with Best Subset Selection. 
+```{r, fig.height=7}
+par(mfrow=c(2,2))
+plot(regfit.fwd, scale = "r2") 
+plot(regfit.fwd, scale = "adjr2") 
+plot(regfit.fwd, scale = "bic") 
+plot(regfit.fwd, scale = "Cp") 
+```
 
-\textcolor{red}{Do more on this task later also!!}
+```{r}
+# Backward selection.
+regfit.bwd <- regsubsets(Balance~., data = credit_data_training, nvmax = n, method = "forward")
+reg.bwd.summary <- summary(regfit.bwd)
+
+# For plotting best points. 
+best.adjr2.bwd <- which.max(reg.bwd.summary$adjr2)
+best.rss.bwd <- which.min(reg.bwd.summary$rss)
+best.cp.bwd <- which.min(reg.bwd.summary$cp)
+best.bic.bwd <- which.min(reg.bwd.summary$bic)
+
+par(mfrow=c(2,2))
+
+plot(reg.bwd.summary$rss, xlab = "Number of variables", ylab = "RSS", type = "l")
+points(best.rss.bwd, reg.bwd.summary$rss[best.rss.bwd], col = "red", cex = 2, pch = 20)
+
+plot(reg.bwd.summary$adjr2, xlab = "Number of variables", ylab = "Adjusted R2", type = "l")
+points(best.adjr2.bwd, reg.bwd.summary$adjr2[best.adjr2.bwd], col = "red", cex = 2, pch = 20)
+
+plot(reg.bwd.summary$bic, xlab = "Number of variables", ylab = "BIC", type = "l")
+points(best.bic.bwd, reg.bwd.summary$bic[best.bic.bwd], col = "red", cex = 2, pch = 20)
+
+plot(reg.bwd.summary$cp, xlab = "Number of variables", ylab = "Cp", type = "l")
+points(best.cp.bwd, reg.bwd.summary$cp[best.cp.bwd], col = "red", cex = 2, pch = 20)
+```
+
+The variables selected in Backward Stepwise Selection are
+
+```{r, fig.height=7}
+par(mfrow=c(2,2))
+plot(regfit.bwd, scale = "r2") 
+plot(regfit.bwd, scale = "adjr2") 
+plot(regfit.bwd, scale = "bic") 
+plot(regfit.bwd, scale = "Cp") 
+```
+
+```{r}
+# Hybrid selection.
+regfit.h <- regsubsets(Balance~., data = credit_data_training, nvmax = n, method = "forward")
+reg.h.summary <- summary(regfit.h)
+
+# For plotting best points. 
+best.adjr2.h <- which.max(reg.h.summary$adjr2)
+best.rss.h <- which.min(reg.h.summary$rss)
+best.cp.h <- which.min(reg.h.summary$cp)
+best.bic.h <- which.min(reg.h.summary$bic)
+
+par(mfrow=c(2,2))
+
+plot(reg.h.summary$rss, xlab = "Number of variables", ylab = "RSS", type = "l")
+points(best.rss.h, reg.h.summary$rss[best.rss.h], col = "red", cex = 2, pch = 20)
+
+plot(reg.h.summary$adjr2, xlab = "Number of variables", ylab = "Adjusted R2", type = "l")
+points(best.adjr2.h, reg.h.summary$adjr2[best.adjr2.h], col = "red", cex = 2, pch = 20)
+
+plot(reg.h.summary$bic, xlab = "Number of variables", ylab = "BIC", type = "l")
+points(best.bic.h, reg.h.summary$bic[best.bic.h], col = "red", cex = 2, pch = 20)
+
+plot(reg.h.summary$cp, xlab = "Number of variables", ylab = "Cp", type = "l")
+points(best.cp.h, reg.h.summary$cp[best.cp.h], col = "red", cex = 2, pch = 20)
+```
+
+The variables selected in Hybrid Stepwise Selection are
+
+```{r, fig.height=7}
+par(mfrow=c(2,2))
+plot(regfit.h, scale = "r2") 
+plot(regfit.h, scale = "adjr2") 
+plot(regfit.h, scale = "bic") 
+plot(regfit.h, scale = "Cp") 
+```
+
+The same models are selected with all three methods and with Best Subset Selection!
 
 ## Recommended Exercise 5
 
@@ -128,19 +315,39 @@ summary(regfit.bwd)
 
 ```{r}
 library(glmnet)
-x <- model.matrix(Balance~., data = credit_data_training)[, -1]
-y <- credit_data_training$Balance
+x.train <- model.matrix(Balance~., data = credit_data_training)[, -1] # Remove the intercept. 
+y.train <- credit_data_training$Balance
 
-grid <- 10^seq(10, -2, length = 100)
-ridge.mod <- glmnet(x, y, alpha = 0, lambda = grid)
+x.test <- model.matrix(Balance~., data = credit_data_testing)[, -1] # Remove the intercept. 
+y.test <- credit_data_testing$Balance
+
+#grid <- 10^seq(10, -2, length = 100)
+ridge.mod <- glmnet(x.train, y.train, alpha = 0) #, lambda = grid) # alpha = 0 --> Ridge. 
+
+set.seed(1)
+cv.ridge <- cv.glmnet(x.train, y.train, alpha = 0)
+plot(cv.ridge)
+
+best.lambda.ridge <- cv.ridge$lambda.min
+best.lambda.ridge
 ```
 
 
 2. Compare the results with the standard linear regression.
 
 ```{r}
-lin.reg <- lm(Balance~., data = credit_data_training)
-summary(lin.reg)
+lin.reg <- lm(y.train~x.train,)
+
+# Lin reg predictions. 
+lin.reg.pred <- predict(lin.reg, newx = x.test)
+lin.reg.mse <- mean((lin.reg.pred-y.test)^2)
+lin.reg.mse
+
+# Ridge predictions.
+ridge.pred <- predict(ridge.mod, s = best.lambda.ridge, newx = x.test)
+ridge.mse <- mean((ridge.pred-y.test)^2)
+ridge.mse 
+
 ```
 
 
@@ -149,27 +356,41 @@ summary(lin.reg)
 1. Apply Lasso regression to the Credit dataset. 
 
 ```{r}
-lasso.mod <- glmnet(x, y, alpha = 1, lambda = grid)
+lasso.mod <- glmnet(x.train, y.train, alpha = 1) #, lambda = grid) # alpha = 0 --> Ridge. 
+
+set.seed(1)
+cv.lasso <- cv.glmnet(x.train, y.train, alpha = 1)
+plot(cv.lasso)
+
+best.lambda.lasso <- cv.lasso$lambda.min
+best.lambda.lasso
 ```
 
 2. Compare the results with the standard linear regression and the Ridge regression. 
 
+```{r}
+lin.reg.mse
+
+# Lasso predictions.
+lasso.pred <- predict(lasso.mod, s = best.lambda.lasso, newx = x.test)
+lasso.mse <- mean((lasso.pred-y.test)^2)
+lasso.mse 
+```
+
+Lasso gives the smallest test MSE among the linear regression, Ridge regression and Lasso regression methods. 
 
 ## Recommended Exercise 7
 
-We should use ... principal components for the Credit dataset because of the R-output below.
-
-\textcolor{red}{This depends on how much variance one wants to explain vs. how much one wants to reduce the dimensionality of the data. }
+We should use 8 principal components for the Credit dataset because of the R-output below. It is debatable how many should be used, but since each of the principal components until PC8 explain between $7.4 \%$ and $25 \%$, while PC9 only explains $3.7 \%$, PC8 is thought of as the final most important component. 
 
 ```{r}
-x <- model.matrix(Balance~., data = Credit)[, -1]
+x <- model.matrix(Balance~., data = credit)[, -1]
 pca <- prcomp(x,scale=TRUE, center= TRUE)
-print(pca)
+#print(pca)
 summary(pca)
 plot(pca, type = "l")
 ```
 
-\textcolor{red}{LF does not have ID as a column, why? Something I missed earlier?}
 
 ## Recommended exercise 8
 
@@ -177,13 +398,15 @@ Apply PCR on the Credit dataset and compare the results with the previous method
 
 ```{r}
 library(pls)
-set.seed(2)
+set.seed(1)
 pcr.fit <- pcr(Balance~., data=credit_data_training, scale = TRUE, validation = "CV")
 summary(pcr.fit)
 
 validationplot(pcr.fit, val.type = "MSEP")
 
-pcr.pred <- predict(pcr.fit, credit_data_testing, ncomp = 7)
+pcr.pred <- predict(pcr.fit, credit_data_testing, ncomp = 10)
+mse.pcr <- mean((pcr.pred - credit_data_testing$Balance)^2)
+mse.pcr
 ```
 
 
@@ -192,9 +415,24 @@ pcr.pred <- predict(pcr.fit, credit_data_testing, ncomp = 7)
 Apply PLS on the Credit dataset and compare the results with the previous methods used in this module. 
 
 ```{r}
-set.seed(2)
+set.seed(1)
 pls.fit <- plsr(Balance~., data = credit_data_training, scale = TRUE, validation = "CV")
 summary(pls.fit)
-validationplot(pls.fit)
+validationplot(pls.fit, val.type = "MSEP")
+
+pls.pred <- predict(pls.fit, credit_data_testing, ncomp = 3)
+mse.pls <- mean((pls.pred - credit_data_testing$Balance)^2)
+mse.pls
 ```
 
+One final comparison table is made, between all the different methods used in this exercise. 
+
+```{r}
+# Table for MSE from the different models. 
+msvalues <-  rbind( c(mse.regbest), c(ridge.mse), c(lasso.mse), c(mse.pcr), c(mse.pls))
+rownames(msvalues) <-  c("BSS (10 fold CV)", "Ridge", "Lasso", "PCR", "PLS")
+colnames(msvalues) <-  c("Test MSE")
+msvalues
+```
+
+Have a look in the solutions for how to make boxplots for the test MSE for all the methods with ggplot (very nice!).
