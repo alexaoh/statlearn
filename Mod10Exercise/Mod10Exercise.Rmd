@@ -1,0 +1,37 @@
+---
+title: "Module 10: Recommended Exercises"
+author: "alexaoh"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  pdf_document:
+    df_print: kable
+subtitle: Statistical Learning V2021
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=68),tidy=TRUE)
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE, tidy=TRUE,message=FALSE,warning=FALSE,strip.white=TRUE,prompt=FALSE,
+                      cache=TRUE, size="scriptsize", comment = "#>", fig.align = "center")
+```
+
+## Problem 1 
+
+Unable to download the dataset; where has it been uploaded?!
+
+# Problem 2
+
+Show that Algorithm 10.1 for K-Means Clustering is guaranteed to decrease the value of the objective 
+
+$$
+\min_{C_1, \dots, C_k}\left\{\sum_{k=1}^K\frac{1}{|C_k|} \sum_{i, i'\in C_k}\sum_{j=1}^p(x_{ij}-x_{i'j})^2\right\}
+$$
+at each step. 
+
+# Problem 3
+
+Again, the dataset cannot be downloaded unfortunately. 
+
+# Problem 4
+
+The same dataset should be used here. 
