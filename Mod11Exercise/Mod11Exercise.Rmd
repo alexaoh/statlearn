@@ -30,21 +30,29 @@ Write down the equation that describes and input is related to output in this ne
 
 <!-- ![Image created here <http://alexlenail.me/NN-SVG/index.html> ](nn.png){width=100%} -->
 
-The given network is called a 4-4-4-3 feedforward network, with one bias node in each layer (except the output of course). The equation that describes the network can be written as 
+The given network is called a 4-4-4-3 feedforward network, with one bias node in each layer (except the output of course). The equation that describes the network can be written as shown in the following. The nodes in the first hidden layer are denoted by 
 
 $$
-y_c(\boldsymbol{x}) = 
+z_m(x) = \phi_{h^*}(\alpha_{0m} + \sum_{j=1}^4\alpha_{jm}x_j), \quad m = 1, \dots, 4,  
 $$
+
+where $\alpha_{jm}$ is the weight from input $j$ to hidden node $m$ and $\alpha_{0m}$ is the bias term for the $m^{th}$ hidden node. The nodes in the second hidden layer can be denoted in the similarly, e.g. with the letter $y_l(x), \quad l = 1, \dots 4$, with weights $\gamma_{ij}$ and $l = 1,2,3,4$ nodes. Finally, the output layer can be denoted by 
+
+$$
+y_c(\boldsymbol{x}) = \phi_o(\beta_{0c}+ \sum_{l = 1}^4\beta_{lc}y_l) = \phi_o(\beta_{0c}+ \sum_{l = 1}^4\beta_{lc}\phi_h(\gamma_{0l} + \sum_{m=1}^4\alpha_{ml}z_m) = \phi_o(\beta_{0c}+ \sum_{l = 1}^4\beta_{lc}\phi_h(\gamma_{0l} + \sum_{m=1}^4\alpha_{ml}\phi_{h^*}(\alpha_{0m} + \sum_{j=1}^4\alpha_{jm}x_j))),
+$$
+
+for $c = 1, 2, 3$, i.e. all the output nodes. 
 
 
 ### b) 
 
 The following image is the illustration of an artificial neural network at Wikipedia. 
 
-* What can you say about this network architecture
-Answer: It is feedforward. Moreover, the hidden layer has four nodes, but no bias node, since there are weights "coming into" each of the nodes. 
+* What can you say about this network architecture? 
+*Answer*: It is feedforward. Moreover, the hidden layer has four nodes, but no bias node, since there are weights "coming into" each of the nodes. The input layer has either 3 input nodes or 2 input nodes and a bias node. The output layer has two nodes. 
 * What do you think it can be used for (regression/classification)?
-Answer: It can be used for binary or tertiary classification (depending on how the nodes are defined), since there are two nodes in the output layer. \textcolor{red}{Softmax activation function can be used got two classes apparently, read more about this later!}. Moreover, it can be used for regression with two responses. 
+*Answer*: It can be used for binary or tertiary classification (depending on how the nodes are defined), since there are two nodes in the output layer. Softmax activation function can be used for two classes. However, for two classes, one output node is most commonly used. Moreover, it can be used for regression with two responses. 
 
 <!-- ![Image taken from <https://commons.wikimedia.org/wiki/File:Colored_neural_network.svg>](Colorednn.png){width=50%} -->
 
@@ -53,16 +61,16 @@ Answer: It can be used for binary or tertiary classification (depending on how t
 
 What are the similarities and differences beween a feedforward neural network with one hidden layer with `linear` activation and `sigmoid` output (one output) and logistic regression?
 
-* Similarities:
+* Similarities: The neural network gives approximately the same coefficients as the logistic regression, since the input is "squashed" into the interval $[0,1]$ when output from the network, because of the sigmoid activation function. They will not give the exact same coefficient estimates, since they use different algorithms to reach minimum. 
 
-* Differences:
+* Differences: Use different algorithms. The neural network must estimate a lot more coefficients. The logistic regression is much better for interpretation compared to the neural network. However, the hidden layer may find latent structures in the data, with the help of the hidden layer, despite the activation function of the hidden layer being linear. 
 
 
 ### d) 
 
 In a feedforward neural network you may have $10'000$ weights to estimate but only $1000$ observations. How is this possible?
 
-Ths is possible because 
+This is possible because you may have 1000 observations in the input layer, but an arbitrarily deep neural network, with arbitrarily wide layers. This is possible to calculate because of the use of iterative methods (gradient descent and backpropagation), which means that there are no unique solutions. 
 
 ## Problem 2
 
@@ -70,14 +78,26 @@ Ths is possible because
 
 Which network architecture and activation functions does this formula correspond to?
 $$ \hat{y}_1({\bf x})=\beta_{01}+\sum_{m=1}^5 \beta_{m1}\cdot \max(\alpha_{0m}+\sum_{j=1}^{10} \alpha_{jm}x_j,0)$$
+
+The hidden layer has the ReLu activation function. Moreover, the network has 10 input nodes (in addition to a bias node) and one hidden layer, with 5 nodes (in addition to a bias node). 
+
+This formula corresponds to a feedforward network with one input layer (with 10 input nodes and one bias node), one hidden layer and one output layer with one node. The hidden layer has a ReLU activation function and 5 nodes in addition to a bias node. 
+
+
 How many parameters are estimated in this network?
+
+Hence, in this network, $11 \cdot 5 + 6 = 61$ parameters are estimated. 
 
 ### b) 
 Which network architecture and activation functions does this formula give?
 
 $$ \hat{y}_1({\bf x})=(1+\exp(-\beta_{01}-\sum_{m=1}^5 \beta_{m1}\max(\gamma_{0m}+\sum_{l=1}^{10} \gamma_{lm}\max(\sum_{j=1}^{4}\alpha_{jl}x_j,0),0))^{-1}$$
 
+This corresponds to a network with 4 input nodes, one hidden layer with 10 nodes (in addition to a bias node), another hidden layer with 5 nodes (in addition to a bias node) and one output node. The first and second hidden layers have the ReLu activation function, while the output layer has a sigmoid activation function.  
+
 How many parameters are estimated in this network?
+
+Hence, in this network, $(4\cdot 10) + (10+1)\cdot5 + (5+1) = 101$ parameters are estimated. 
 
 ### c) 
 In a regression setting: Consider
@@ -86,6 +106,8 @@ In a regression setting: Consider
 * A sum of many non-linear functions of sums of covariates in feedforward neural networks (one hidden layer, non-linear activation in hidden layer) in Module 11.
 
 Explain how these two ways of thinking differ? Pros and cons?
+
+The first model is simpler, while the second is more complex. Pros and cons?
 
 ## Problem 3: Handwritten digit recognition data
 
