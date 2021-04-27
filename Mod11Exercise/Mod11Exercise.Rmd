@@ -107,7 +107,7 @@ In a regression setting: Consider
 
 Explain how these two ways of thinking differ? Pros and cons?
 
-The first model is simpler, while the second is more complex. Pros and cons?
+*Answer*: The first model is simpler, while the second is more complex. The second way gives two transformations of the data, while the first only tranforms it once. Pros with the second way is that it opens to as many non-linear transformations of the data as one could desire, since one can add more hidden layers in the network. Cons with the second way is that it needs iterative solvers and it cannot be guaranteed that a global minimizer of the cost function is found. A pro with the first method is that the parameters in the model can be estimated precisely using linear algebra. Another important pro of the first method is that the estimated coefficients are easy to interpret and, hence, it can be used for inference, where as this is extremely hard (if not impossible) in the neural network setting. Interactions are automatically handled in the neural network setting, since there are non-linear functions of sums from the previous layers, while the interactions need to be added manually in the additive model in the first method. Lastly, a neural net with at least one hidden layer and a "squashing type" activation function, any function can be fit. 
 
 ## Problem 3: Handwritten digit recognition data
 
@@ -149,9 +149,34 @@ Preprocessing is important before we fit a neural network. Standardize the featu
 
 Remember that it is important to decide on the scale based on the training data, and then apply the same standardization for both training and test data (i.e., centering around the same mean and transforming to the same variance).
 
+```{r}
+library(ElemStatLearn)
+train.data <- zip.train[, -1]
+train.labels <- factor(zip.train[, 1])
+test.data <- zip.test[, -1]
+test.labels <- factor(zip.test[, 1])
+
+# Standardize the data. 
+mean <- apply(train.data, 2, mean)
+std <- apply(train.data, 2, sd)
+train.data <- scale(train.data, center = mean, scale = std)
+test.data <- scale(test.data, center = mean, scale = std)
+```
+
+
 
 ### b) 
 Use a feedforward-network with one hidden layer to train and predict using the `nnet()` function from the `nnet` R package. Include 5 hidden nodes plus a bias node in the input and hidden layers. What is the number of parameters? Look at the confusion table for the test data. How good does the network perfom? 
+
+```{r}
+library(nnet)
+fit.nnet<- nnet(train.labels~., data = train.data, size = 5, MaxNWts = 3000, maxit = 5000)
+summary(fit.nnet)
+pred <- predict(fit.nnet, newdata = test.data, type="class")
+library(caret)
+confusionMatrix(factor(pred),test.labels)
+```
+
 
 # Problem 4: Deep Learning with Keras
 
@@ -161,14 +186,15 @@ For more info see [here](https://keras.rstudio.com/)
 
 If you have already installed `keras` ignore the following chunk of code
 
-```{r,eval = FALSE}
+```{r, eval = F}
 # Install the keras R package 
 #install.packages("keras")
 # Install the core Keras library + TensorFlow
 library(keras)
 install_keras()
 # for machines with NVIDIA GPU
-install_keras(tensorflow = "gpu") 
+#install_keras(tensorflow = "gpu") 
+# Did not switch to NVIDIA GPU this time. 
 ```
 
 
@@ -196,11 +222,12 @@ In order to fit a model in keras we can use the following steps. We fit a densel
 
 ##### 1. Define the model
 
-```{r, eval =FALSE}
-model = keras_model_sequential() %>% 
-  layer_dense(units = 8, activation = 'relu', input_shape = c(...)) %>% # fill in the length of the input layer 
+```{r}
+model <- keras_model_sequential() %>% 
+  layer_dense(units = 8, activation = 'relu', input_shape = c(28*28)) %>% # fill in the length of the input layer 
   layer_dense(units = 8, activation = 'relu') %>%
-  layer_dense(units = 10, activation = ...) # fill in the name of the activation function
+  layer_dense(units = 10, activation = "softmax") # fill in the name of the activation function
+summary(model)
 ```
 
 Possible choices of the activation function are 'sigmoid', 'softmax' or the identity function (which means that we don't have to define any activation argument in the last layer). What is the use of identity function?
@@ -208,29 +235,24 @@ Possible choices of the activation function are 'sigmoid', 'softmax' or the iden
 ##### 2. Compile 
 
 
-```{r, eval=FALSE}
-model %>% compile(
-optimizer = "rmsprop",
-loss = ..., metrics = c(...)
-)
+```{r}
+#model %>% compile(optimizer = "rmsprop", loss = "categorical_crossentropy", metrics = c("accuracy"))
+model%>%compile(optimizer ='rmsprop',loss ='categorical_crossentropy',metrics =c('accuracy'))
 ```
 
 Possible choices of loss function are 'binary_crossentropy', 'categorical_crossentropy' and 'mse'. For metrics you can use 'mean_absolute_error' or 'accuracy'.
 
 ##### 3. Train 
 
-```{r, eval=FALSE}
-history = model %>% fit(x_train, y_train,
-epochs = 20,
-batch_size = 128,
-validation_split = 0.2)
+```{r}
+history <-  model %>% fit(x_train, y_train, epochs = 20, batch_size = 128, validation_split = 0.2)
 ```
 
 You can find more information about the different arguments in the `fit()` function here: https://keras.rstudio.com/reference/fit.html
 
 Report the accuracy on the test data.
 
-```{r, eval=FALSE}
+```{r}
 str(history)
 plot(history)
 model %>% evaluate(x_test,y_test)
@@ -247,7 +269,7 @@ Now fit a model with 2 hidden layers with 128 units each. What do you see?
 In order to avoid the problem we have seen in b), we can use weight reguralization (L1 and L2 norms) or dropout. Apply these methods to the network from b). 
 
 **R-hint:** for weight reguralization you can use  
-```{r,eval=F}
+```{r}
 layer_dense(units = 16, activation = "relu", input_shape = 28*28, 
             
             kernel_regularizer = regularizer_l2(l = 0.001))
