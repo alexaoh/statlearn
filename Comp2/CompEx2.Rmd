@@ -1,0 +1,526 @@
+---
+subtitle: "TMA4268 Statistical Learning V2021"
+title: "Compulsory exercise 2: Group 39"
+author: "Alexander J. Ohrt, Jim Totland"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmarkdown)
+library(tidyverse)
+library(ggplot2)
+library(ggfortify)
+library(leaps)
+library(glmnet)
+library(tree)
+library(caret)
+library(randomForest)
+library(readr)
+library(e1071)
+library(dplyr)
+library(gbm)
+library(MASS)
+
+knitr::opts_chunk$set(echo = TRUE,tidy=TRUE,message=FALSE,warning=FALSE,strip.white=TRUE,prompt=FALSE,
+                      cache=TRUE, size="scriptsize",fig.width=5, fig.height=3, comment = "#>", fig.align = "center")
+```
+
+# Problem 1
+## a)
+FALSE, TRUE, TRUE, FALSE
+
+## b)
+We have chosen the cross-validated prediction error as the measure to use in our model selection. A plot showing the cross-validated prediction error is displayed below. The red dot shows the optimal number of variables based on this measure. 
+
+```{r}
+id <- "1iI6YaqgG0QJW5onZ_GTBsCvpKPExF30G"  # Google file ID.
+catdat <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download", id), 
+                   header = T)
+
+set.seed(4268)
+train.ind <- sample(1:nrow(catdat), 0.5 * nrow(catdat))
+catdat.train <- catdat[train.ind, ]
+catdat.test <-catdat[-train.ind, ]
+
+# Perform best subset selection using all the predictors and the training data.
+n <- ncol(catdat.train) - 1 # Number of predictors.
+bss.obj <- regsubsets(birds~., data = catdat.train, nvmax = n) # Best subset selection. 
+sum <-  summary(bss.obj) # Save summary obj.
+
+# Cross-validated prediction error. 
+# Create a prediction function to make predictions for regsubsets with id predictors included.
+predict.regsubsets <- function(object,newdata,id,...){
+  form=as.formula(object$call[[2]])
+  mat=model.matrix(form,newdata)
+  coefi=coef(object,id=id)
+  xvars=names(coefi)
+  mat[,xvars]%*%coefi
+}
+
+# Create indices to divide the data between folds.
+k <- 10
+folds <-  sample(1:k, nrow(catdat.train), replace=TRUE)
+cv.errors <- matrix(NA, k, n, dimnames=list(NULL, paste(1:n)))
+
+# Perform CV.
+for(j in 1:k){
+  bss.obj <- regsubsets(birds~., data = catdat.train[folds != j,],nvmax = n)
+  for(i in 1:n){
+    pred <- predict(bss.obj, catdat.train[folds==j,], id=i)
+    cv.errors[j,i] <- mean((catdat.train$birds[folds==j]-pred)^2)
+  }
+}
+
+# Compute mean cv errors for each model size.
+mean.cv.errors <- apply(cv.errors,2,mean)
+bss.cv <- which.min(mean.cv.errors) 
+
+# Plot the mean cv errors.
+plot(mean.cv.errors, xlab = "Number of Variables", ylab = "CV", type='l')
+points(bss.cv, mean.cv.errors[bss.cv], col="red", cex=2, pch=20)
+```
+
+The optimal number of predictors (in addition to the intercept) according to the cross validated prediction error is `r bss.cv`. We would argue that cross-validation is a more reliable way of selecting among the models, since it is a resampling method, compared to only running one best subset selection on the training data and choosing based on other model selection criteria. To further strengthen this argument, we calculated the test MSE based on the best model found when using the model criteria $R_\mathrm{adj}^2$, $BIC$ and $C_p$. All these cases led to higher values for test MSE compared to the test MSE attained when applying the model selected with cross-validation. Hence, the selected variables are as shown below.
+
+```{r}
+# Best model, based on amount of variables chosen by CV. 
+coef(bss.obj, bss.cv) # Selected variables.
+fit <- lm(birds~weight+wetfood+daily.playtime+children.13+urban+bell+daily.outdoortime, data = catdat.train)
+pred.regbest <- predict(fit, newdata = catdat.test)
+mse.regbest <- mean((pred.regbest - catdat.test$birds)^2) # Test Mean Square Error.
+mse.regbest
+```
+
+The test MSE is `r mse.regbest`.
+
+## c)
+Using Lasso regression on the same data set leads to the following. In order to choose an optimal value of $\lambda$, 10-fold cross-validation is used. 
+
+```{r}
+x.train <- model.matrix(birds~., data = catdat.train)[, -1]
+y.train <- catdat.train$birds
+x.test <- model.matrix(birds~., data = catdat.test)[, -1]
+y.test <- catdat.test$birds
+
+lasso.mod <- glmnet(x.train, y.train, alpha = 1) # alpha = 1 specifies Lasso regression. 
+
+# Perform cross validation. 
+set.seed(4268)
+cv.out <- cv.glmnet(x.train, y.train, alpha = 1)
+bestlam <- cv.out$lambda.min
+bestlam # Lambda is "small", so the fit is relatively similar to least squares. 
+
+lasso.coeff <- coef(cv.out, s = "lambda.min")
+lasso.coeff
+
+lasso.pred <- predict(lasso.mod, s = bestlam, newx = x.test)
+mse.lasso <- mean((lasso.pred - y.test)^2)
+mse.lasso
+```
+
+As seen in the output above, the test MSE is `r mse.lasso`. Moreover, all coefficients, except `sex`, `age`, `fellow.cats` and `daily.catnip` are non-zero. 
+
+## d)
+When $\lambda \rightarrow \infty$, the Lasso regression gives the null model, i.e. the model where all the coefficients are zero. When $\lambda = 0$, the Lasso regression gives the least squares fit. 
+
+## e)
+ i) A model with only intercept always predicts the mean of the response in the training data. The test MSE for this model is given below.  
+```{r}
+mse.intercept <- mean((mean(catdat.train$birds)-catdat.test$birds)^2) 
+mse.intercept
+```
+ii)
+```{r}
+# A multiple linear regression.
+least.sq <- lm(birds~., data = catdat.train)
+yhat.least.sq <- predict(least.sq, newdata = catdat.test)
+mse.least.sq <- mean((yhat.least.sq - catdat.test$birds)^2) 
+mse.least.sq
+```
+We see that using only an intercept yields a test MSE of `r mse.intercept`, while a standard linear regression yields a test MSE of `r mse.least.sq`. On the other hand, best subset selection resulted in a test MSE of `r mse.regbest` and lasso regression resulted in a test MSE of `r mse.lasso`. Thus, both models from b) and c) are superior to the ones introduced here, in terms of test MSE.
+
+## f)
+
+A table with the test MSE values from best subset selection, lasso regression, intercept-only and ordinary linear regression is shown below. 
+
+```{r}
+msrate <- cbind(mse.regbest, mse.lasso, mse.intercept, mse.least.sq)
+colnames(msrate) <- c("Best Subset", "Lasso", "Intercept-only", "Least Squares")
+rownames(msrate) <- c("Test MSE")
+msrate
+```
+
+The results are as expected. First of all, best subset selection is an exhaustive search in the space of all possible models, which means that it should find the best possible linear model (according to some measure). This could lead to overfitting however, because of the large search space, but has given the best result in this case. Secondly, shrinkage methods, like Lasso regression, are used to reduce overfitting to the training data. Then, the test MSE might be reduced, since the variance might have been reduced more than the bias has increased (bias-variance trade-off) after regularization. In this case, this gives a modest decrease in test MSE compared to the least squares regression. Finally, it is expected that the linear regression has a smaller test MSE compared to the intercept-only model, since predicting every value as the mean of the `birds`-values does not capture any trends in the data. 
+
+# Problem 2
+
+## a) 
+
+TRUE, TRUE, FALSE, FALSE. 
+
+## b) 
+
+The basis functions for a cubic spline with knots at the quartiles $q_1$ and $q_2$ of variable $X$ are 
+
+$$
+X, X^2, X^3, (X-q_1)^3_+ \text{ and } (X-q_2)^3_+, 
+$$
+
+where 
+
+$$
+  (X-q_j)^d_+ = \begin{cases}
+    (X-q_j)^d &, X > q_j\\
+    0&,\text{otherwise.} 
+  \end{cases}
+$$
+
+## c)
+
+(i)
+```{r, fig.height=2.8}
+# Fit polynomial regression with training data.
+outdoor.data <- catdat.train[c("daily.outdoortime", "birds")] # Pick out necessary training data. 
+par(mar=c(4, 3, 3, 4.5), xpd=TRUE) # Change margins of plots. 
+plot(outdoor.data, 
+     main = "", xlab = "Outdoor Time", ylab="Birds")
+deg <- 1:10
+col <- rainbow(n = length(deg))
+mse.train <- seq(from = 1, to = length(deg))
+for (d in 1:length(deg)){ 
+  fit <- lm(birds~poly(daily.outdoortime, d), data = outdoor.data)
+  lines(sort(outdoor.data[, 1]), fit$fit[order(outdoor.data[, 1])], col = col[d])
+  mse.train[d] = mean((predict(fit, outdoor.data) - outdoor.data[, 2])^2)
+}
+legend("topright", inset = c(-0.25, 0), legend=paste("d = ", deg), col = col, pch = 20)
+mse.train # MSE from training data.
+which.min(mse.train)
+```
+
+(ii) It is seen that the training MSE decreases steadily as the degree of the polynomial regression increases. This is because we increase the flexibility of the model when we increment the polynomial degree, which reduces the training MSE. 
+
+# Problem 3
+
+## a)
+
+TRUE, TRUE, FALSE, FALSE 
+
+## b)
+
+(\textbf{Which leaves?}) The tree from a) pruned down to three leaves should consist of `age < 81.5`, `country: indonesia, japan, Korea` and `country: France`. In essence, the entire left subtree is pruned, while the right subtree is kept as is. 
+
+(\textbf{Why?}) This is the best way to prune the tree down to three leaves because we assume that the length of the branches is proportional to the decrease in node impurity. Hence, we choose the leaves with the longest branches, i.e. the right subtree. 
+
+## c)
+
+```{r}
+id <- "1Fv6xwKLSZHldRAC1MrcK2mzdOYnbgv0E" # Google file ID.
+d.diabetes <- dget(sprintf("https://docs.google.com/uc?id=%s&export=download", id))
+d.train <-d.diabetes$ctrain
+d.test <- d.diabetes$ctest
+d.train$diabetes <- as.factor(d.train$diabetes) # Added to make classification tree. 
+d.test$diabetes <- as.factor(d.test$diabetes) # Added to make classification tree. 
+```
+
+(i)
+
+```{r}
+# Simple classification tree.
+set.seed(1)
+simple.tree <- tree(diabetes~., data = d.train, split = "deviance")
+plot(simple.tree, type = "proportional", cex = 0.5)
+text(simple.tree, cex = 0.5, pretty = 0)
+
+# Calculate classification error for the unpruned tree.
+yhat.simple <- predict(simple.tree, newdata = d.test, type = "class")
+conf.table.simple <- table(yhat.simple, d.test$diabetes)
+conf.table.simple
+class.rate.simple <-  1 - sum(diag(conf.table.simple))/(sum(conf.table.simple))
+class.rate.simple
+
+# Apply cost complexity pruning. 
+cv.diabetes <- cv.tree(simple.tree) # 10-fold CV is default. 
+# Deviance as guide in the pruning process is default. 
+best <- which.min(cv.diabetes$dev) # Finds best model.
+```
+
+```{r, fig.height=2.5}
+plot(cv.diabetes$size, 
+  cv.diabetes$dev, type = "b", xlab = "Terminal Nodes", ylab = "Deviance")
+points(cv.diabetes$size[best], cv.diabetes$dev[best], col = "red", pch = 20)
+
+best.tree <- prune.tree(simple.tree, best = cv.diabetes$size[best])
+plot(best.tree)
+text(best.tree, cex = 0.7, pretty = 0)
+```
+
+```{r}
+# Calculate classification error for the pruned tree.
+yhat.pruned <- predict(best.tree, newdata = d.test, type = "class")
+conf.table.pruned <- table(yhat.pruned, d.test$diabetes)
+conf.table.pruned
+class.rate.pruned <-  1-sum(diag(conf.table.pruned))/(sum(conf.table.pruned))
+```
+
+The misclassification rate for the pruned tree is `r class.rate.pruned`. It is apparent that the misclassification rate on the test set is slightly lower for the pruned tree with 3 terminal nodes compared to the unpruned tree. We notice that the left branch only predicts 0, which means that the tree is equivalent to a tree with only two terminal nodes where the left one predicts 0 and the right one predicts 1.
+
+(ii) For the more advanced method, a random forest approach is considered. The number of trees is chosen to be $B = 1000$, since this amount seems to be sufficient for the test error to settle. Furthermore, since $p = 7$, we choose the tuning parameter $m = 3 \approx \sqrt{p}$, because this is recommended in ISLR. 
+```{r}
+set.seed(1)
+B <- 1000
+m <- 3
+rf.d <- randomForest(diabetes ~ ., d.train, mtry = m, ntree = B, importance = T)
+
+yhat <- predict(rf.d, newdata = d.test, type = "class")
+response.test <- d.test$diabetes
+d.misclass <- table(yhat, response.test)
+d.misclass
+rf.misclass <- 1 - sum(diag(d.misclass))/sum(d.misclass)
+rf.misclass
+```
+
+The resulting test misclassification rate is `r rf.misclass`. This is slightly lower than for the simple trees. Next, we find the most influential variables in this classification problem.
+
+```{r, fig.height=2}
+varImpPlot(rf.d, main = "", cex = 0.5)
+```
+Based on both metrics in the plots above, it is apparent that `glu` and `bmi` are the most influential, as expected based on the simple trees from earlier. 
+
+# Problem 4
+
+## a)
+
+TRUE, TRUE, FALSE, TRUE
+
+## b)
+
+```{r 4b}
+id <- "1x_E8xnmz9CMHh_tMwIsWP94czPa1Fpsj"  # Google file ID.
+d.leukemia <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download", id), header = T)
+set.seed(2399)
+t.samples <- sample(1:60, 15, replace = F)
+d.leukemia$Category <- as.factor(d.leukemia$Category)
+d.leukemia.test <- d.leukemia[t.samples, ]
+d.leukemia.train <- d.leukemia[-t.samples, ]
+```
+
+(i) A support vector machine (SVM) is more suitable than a logistic regression here, because $p > n$. This means that the parameters in the logistic regression model cannot be estimated. Linear or quadratic discriminant analysis could also be used in this case, in addition to regularized logistic regression variants, i.e. with added penalty term when optimizing (similar to e.g. ridge regression). Classification trees and tree-based methods such as bagging, boosting and random forests can also be used. K-nearest neighbors could also be used, but the curse of dimensionality might deteriorate its performance. 
+
+(ii) The paper intends to demonstrate a new method for identifying the subset of genes (predictors) which capture the necessary information in order to classify patients into different groups (response). They introduce the Ensemble SVM-Recursive Feature Elimination (ESVM-RFE), which combines the ensemble and bagging methods used in random forests with SVMs and a backward elimination strategy.
+
+(iii)
+
+```{r}
+svcfit <- svm(Category~., data = d.leukemia.train, kernel = "linear", cost = 1, scale = T)
+
+# Confusion table from training. 
+train.yhat <- predict(svcfit, newdata = d.leukemia.train)
+train.misclass <- table(predict = train.yhat, truth = d.leukemia.train$Category)
+train.misclass
+
+# Confusion table from testing. 
+test.yhat <- predict(svcfit, newdata = d.leukemia.test) 
+test.misclass <- table(predict = test.yhat, truth = d.leukemia.test$Category)
+test.misclass
+```
+
+
+The misclassification rates are `r round(1 - sum(diag(train.misclass)) / sum(train.misclass), 3)` for the training data and `r round(1 - sum(diag(test.misclass)) / sum(test.misclass), 3)` for the test data.
+
+The training error rate is not surprising, as finding a separating hyperplane when $p >> n$ is easy. Given that `Relapse = 1` and `Non-Relapse = 0`, the support vector classifier has 1 false positive and 4 false negatives on the test set. This means that a false negative is the most common type of error that is seen in the test set. In a clinical setting, false negatives are usually more severe than false positives; i.e. the classifier is very unsuccessful from that perspective.
+
+The low training error and relatively large test error could indicate overfitting. Despite this, the classification method is successful in the sense that it performs slightly better than the null rate, which is attained when always predicting the most frequently occurring class in the training data, which is `Non-Relapse`. The output below substantiates this argument. 
+
+```{r}
+# Most occurring class is "Non-Relapse".
+summary(d.leukemia.train$Category)
+# Confusion table from predicting most occurring class. 
+test.misclass.most <- table(predict = rep("Non-Relapse", length(d.leukemia.test$Category)), truth = d.leukemia.test$Category)
+test.misclass.most
+# Misclassification error rate from testing.
+1 - sum(diag(test.misclass.most)) / sum(test.misclass.most)
+```
+
+(iv)
+First, the analysis is repeated with $\gamma = 10^{-2}$. 
+```{r}
+svcfit.radial.1 <- svm(Category~., data = d.leukemia.train, kernel = "radial", cost = 1, gamma = 1e-2, scale = T)
+
+# Confusion table from training. 
+train.yhat.radial.1 <- predict(svcfit.radial.1, newdata = d.leukemia.train)
+train.misclass.radial.1 <- table(predict = train.yhat.radial.1, truth = d.leukemia.train$Category)
+train.misclass.radial.1
+
+# Confusion table from testing. 
+test.yhat.radial.1 <- predict(svcfit.radial.1, newdata = d.leukemia.test) 
+test.misclass.radial.1 <- table(predict = test.yhat.radial.1, truth = d.leukemia.test$Category)
+test.misclass.radial.1
+```
+
+The training error rate is `r 1 - sum(diag(train.misclass.radial.1)) / sum(train.misclass.radial.1)` in this case. The test misclassification rate is `r 1 - sum(diag(test.misclass.radial.1)) / sum(test.misclass.radial.1)`, i.e. no better than always predicting the most frequently occurring class (which is what the method does for the test set). The low training error and the poor performance on the test set indicate that the model is overfitted to the training data.
+
+Next, the analysis is repeated with $\gamma = 10^{-5}$. 
+
+```{r}
+svcfit.radial.2 <- svm(Category~., data = d.leukemia.train, kernel = "radial", cost = 1, gamma = 1e-5, scale = T)
+
+# Confusion table from training. 
+train.yhat.radial.2 <- predict(svcfit.radial.2, newdata = d.leukemia.train)
+train.misclass.radial.2 <- table(predict = train.yhat.radial.2, truth = d.leukemia.train$Category)
+train.misclass.radial.2
+
+# Confusion table from testing. 
+test.yhat.radial.2 <- predict(svcfit.radial.2, newdata = d.leukemia.test) 
+test.misclass.radial.2 <- table(predict = test.yhat.radial.2, truth = d.leukemia.test$Category)
+test.misclass.radial.2
+```
+The training error rate is now `r round(1 - sum(diag(train.misclass.radial.2)) / sum(train.misclass.radial.2), 3)`, while the test misclassification rate is `r 1 - sum(diag(test.misclass.radial.2)) / sum(test.misclass.radial.2)`, i.e. no better than always predicting the most frequently occurring class (which is what the method does for the test set). The increase in training error can be explained by the change in $\gamma$, as a smaller value of this tuning parameter makes the decision boundary smoother, i.e. less variable. In other words, the model becomes more biased.
+
+To compare, we see that the support vector classifier from (iii) outperforms the more flexible support vector machines from (iv) on the test set and also on the training set for $\gamma = 10^{-5}$. This indicates that a linear decision boundary is more appropriate in this situation, compared to the more flexible radial kernel.
+
+## c)
+$$
+\begin{split}
+K(X, X') &= (1 + \sum_{j=1}^2X_{j}X_{j}')^2 \\ &= (X_{1}X_{1}' + X_{2}X_{2}' + 1)^2 \\
+&= (X_{1}X_{1}')^2 + (X_{2}X_{2}')^2 + 2X_{1}X_{2}\cdot X_{1}'X_{2}' + 2X_{1}X_{1}' + 2X_{2}X_{2}' + 1 \\
+&= \langle h(X), h(X')\rangle,
+\end{split}
+$$
+where
+$$
+h(X) = (X_{1}^2, X_{2}^2,\sqrt{2}X_{1}X_{2}, \sqrt{2}X_{1}, \sqrt{2}X_{2}, 1)^T.
+$$
+
+# Problem 5
+
+## a)
+
+TRUE, FALSE, FALSE, FALSE
+
+## b)
+
+(i)
+```{r, fig.height=2}
+set.seed(1)
+x1 <- c(1, 2, 0, 4, 5, 6)
+x2 <- c(5, 4, 3, 1, 1, 2)
+K <- 2
+cluster <-  sample(1:K, length(x1), replace = T)
+df <- as.data.frame(cbind(x1, x2, cluster))
+df$cluster <-  as.factor(df$cluster)
+```
+
+(ii) 
+```{r}
+calc_centr <- function(k, df) {
+  feats <- df[df$cluster == k, 1:2]
+  mean.1 <- mean(feats[, 1])
+  mean.2 <- mean(feats[, 2])
+  return(c(mean.1, mean.2))
+}
+
+c1 <- calc_centr(1, df)
+c2 <- calc_centr(2, df)
+plot(df$x1, df$x2, col = df$cluster, pch = 19, xlab = "x1", ylab = "x2")
+points(c1[1], c1[2], col = 1, pch = 4)
+points(c2[1], c2[2], col = 2, pch = 4)
+```
+
+(iii)
+```{r}
+eucl.dist <- function(x, y) {
+  d <- length(x) # Dimension.
+  sum = 0
+  for(i in 1:d) {
+    sum = sum + (x[i] - y[i])^2
+  }
+  return(sqrt(sum))
+}
+
+reassign <- function(df, centroids){
+  n = nrow(df)
+  for(i in 1:n) {
+    dist1 <-  eucl.dist(df[i, 1:2], centroids[1, ])
+    dist2 <- eucl.dist(df[i, 1:2], centroids[2, ])
+    if(dist1 > dist2) {
+    df[i, 3]  <- 2
+    } else {
+      df[i, 3] <- 1
+    }
+  }
+  return(df)
+}
+
+df2 <- reassign(df, matrix(c(c1,c2), nrow = 2, byrow = T))
+plot(df2$x1, df2$x2, col = df2$cluster, pch = 19, xlab = "x1", ylab = "x2")
+```
+
+## c)
+
+```{r, fig.height=5}
+id <- "1VfVCQvWt121UN39NXZ4aR9Dmsbj-p9OU"  # Google file ID.
+GeneData <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download", 
+                             id), header = F)
+colnames(GeneData)[1:20] <- paste(rep("H", 20), c(1:20), sep = "")
+colnames(GeneData)[21:40] <- paste(rep("D", 20), c(1:20), sep = "")
+row.names(GeneData) <-paste(rep("G", 1000), c(1:1000), sep = "")
+GeneData <- t(GeneData)
+GeneData <- scale(GeneData)
+
+hc.euc.complete <- hclust(dist(GeneData), method = "complete")
+hc.euc.single <- hclust(dist(GeneData), method = "single")
+hc.euc.average <- hclust(dist(GeneData), method = "average")
+
+par(mfrow = c(2, 3))
+plot(hc.euc.complete, main = "Complete Linkage", xlab = " ", sub = " ", cex = 0.5)
+plot(hc.euc.single, main = "Single Linkage", xlab = " ", sub = " ", cex = 0.5)
+plot(hc.euc.average, main = "Average Linkage", xlab = " ", sub = " ", cex = 0.5)
+
+dd <- as.dist(1 - cor(t(GeneData)))
+hc.cor.complete <- hclust(dd, method = "complete")
+hc.cor.single <- hclust(dd, method = "single")
+hc.cor.average <- hclust(dd, method = "average")
+
+plot(hc.cor.complete, cex.main = 0.7, main = "CL with Correlation-based Distance", xlab = " ", sub = " ", cex = 0.5)
+plot(hc.cor.single, cex.main = 0.7, main = "SL with Correlation-based Distance", xlab = " ", sub = " ", cex = 0.5)
+plot(hc.cor.average, cex.main = 0.7, main = "AL with Correlation-based Distance", xlab = " ", sub = " ", cex = 0.5)
+```
+
+## d)
+
+```{r}
+cutree(hc.euc.complete, 2)
+all.equal(cutree(hc.euc.single, 2), cutree(hc.euc.average, 2), cutree(hc.cor.complete, 2), cutree(hc.cor.single, 2), cutree(hc.cor.average, 2))
+```
+
+Since we know that the first 20 tissues come from healthy patients and the remaining 20 come from diseased patients, we can see that all the linkage and distance measures lead to perfect classification results on this data. 
+
+## e)
+
+(i) 
+```{r}
+pr.out <- prcomp(GeneData)
+plot(pr.out$x[, 1:2], col = c(rep("blue", 20), rep("red", 20)), 
+  pch = 20, main = "Samples in two dimensions using PCA")
+text(pr.out$x[,"PC1"],pr.out$x[, "PC2"],rownames(GeneData),cex=0.6) 
+legend("top", legend=c("Healthy", "Diseased"), col = c("blue", "red"), pch = 20)
+```
+
+(ii)
+```{r}
+pr.var <- pr.out$sdev^2
+pve <- sum(pr.var[1:5]) / sum(pr.var)
+pve
+```
+The proportion of variance explained by the first 5 PCs is `r round(100 * pve, 2)`%.
+
+## f)
+
+The plot in e) shows that the two groups are perfectly separated along the axis of the first principal component (PC1), which contains the highest variability in the data among all the principal components. Hence, to determine which genes vary the most across the two groups, the loadings of the first principle component are examined. The genes with the highest loadings (rotations)  contribute the most to the variability. Hence, we infer that the genes displayed in the output below vary the most across the two groups.
+
+```{r}
+sort(abs(pr.out$rotation[, "PC1"]), decreasing = T)[1:10]
+```
