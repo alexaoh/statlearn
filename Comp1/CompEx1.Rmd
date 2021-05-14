@@ -1,0 +1,410 @@
+---
+subtitle: "TMA4268 Statistical Learning V2021"
+title: "Compulsory exercise 1: Group 39"
+author: "Alexander J Ohrt, Jim Totland"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  pdf_document
+---
+  
+```{r setup, include=FALSE}
+library(knitr)
+library(ggplot2)
+library(MASS)
+library(tidyverse)
+library(class)
+library(pROC)
+#library(plotROC)
+knitr::opts_chunk$set(echo = TRUE,tidy=TRUE,message=FALSE,warning=FALSE,strip.white=TRUE,prompt=FALSE,
+                      cache=TRUE, size="scriptsize",fig.width=4, fig.height=3, comment = "#>", fig.align = "center")
+```
+
+# Problem 1
+
+## a)
+
+By extending the given univariate regression problem to a multivariate regression problem that allows for several observations, we have that ${\bf Y} = {\bf X} {\boldsymbol\beta} + \boldsymbol{\varepsilon}$. Hence, we have $\mathsf{E}({\bf Y}) =  \mathsf{E}({\bf X}\boldsymbol{\beta} + \boldsymbol{\varepsilon}) = \mathbf{X}\boldsymbol{\beta}$ and $\mathsf{Cov}({\bf Y}) = \sigma^2 I$, assuming that $\boldsymbol{\varepsilon} \sim N(0, \sigma^2I)$. Then
+
+
+$$
+\begin{split}
+\mathsf{E}(\widetilde{\boldsymbol \beta}) &= \mathsf{E}((\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1}\mathbf{X}^T{\bf Y}) = (\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1}\mathbf{X}^T\mathsf{E}({\bf Y}) = (\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1}\mathbf{X}^T\mathbf{X}\boldsymbol{\beta}
+\end{split}
+$$
+
+and 
+
+$$
+\begin{split}
+\mathsf{Cov}(\widetilde{\boldsymbol \beta}) &= \mathsf{Cov}((\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1}\mathbf{X}^T{\bf Y}) = ((\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1}\mathbf{X}^T)\mathsf{Cov}({\bf Y})((\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1}\mathbf{X}^T)^T \\ &= ((\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1}\mathbf{X}^T)\sigma^2 I{\bf X}(\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-T} = \sigma^2((\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1}\mathbf{X}^T{\bf X}(\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-T}) \\
+&= \sigma^2((\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1}\mathbf{X}^T{\bf X}(\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1}),
+\end{split}
+$$
+
+where we have used that $(\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1} = (\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-T}$ in the last equality, because $\mathbf{X}^T\mathbf{X}+\lambda {\bf I}$ is symmetric.
+
+In both these equations it is apparent that the moments are equal to those of the OLS estimator when $\lambda = 0$. 
+
+## b)
+
+The requested moments of $\widetilde{f}(\mathbf{x}_0) = \mathbf{x}_0^T \widetilde{\boldsymbol{\beta}}$ are 
+
+$$
+\mathsf{E}(\widetilde{f}(\mathbf{x}_0)) = \mathsf{E}(\mathbf{x}_0^T \widetilde{\boldsymbol{\beta}}) = \mathbf{x}_0^T\mathsf{E}(\widetilde{\boldsymbol \beta}) = \mathbf{x}_0^T (\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1}\mathbf{X}^T\mathbf{X}\boldsymbol{\beta}
+$$
+
+and
+
+$$
+\begin{split}
+\mathsf{Cov}(\widetilde{f}(\mathbf{x}_0)) &= \mathsf{Cov}(\mathbf{x}_0^T \widetilde{\boldsymbol{\beta}}) 
+= \mathbf{x}_0^T\mathsf{Cov}(\widetilde{\boldsymbol{\beta}})\mathbf{x}_0 \\ &= \sigma^2\mathbf{x}_0^T((\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1}\mathbf{X}^T{\bf X}(\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1}) \mathbf{x}_0.
+\end{split}
+$$
+
+
+## c)
+
+The expected MSE at $\mathbf{x}_0$ is 
+
+$$
+\begin{split}
+\mathsf{E}[(y_0 - \widetilde{f}(\mathbf{x}_0))^2] &= [\mathsf{E}(\widetilde{f}(\mathbf{x}_0)-f(\mathbf{x}_0))]^2+\mathsf{Var}(\widetilde{f}(\mathbf{x}_0) ) + \mathsf{Var}(\varepsilon) \\
+&= [\mathsf{E}(\widetilde{f}(\mathbf{x}_0)) - \mathsf{E}(f(\mathbf{x}_0))]^2 + \mathsf{Cov}(\widetilde{f}(\mathbf{x}_0)) + \sigma^2 \\
+&= [\mathbf{x}_0^T (\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1}\mathbf{X}^T\mathbf{X}\boldsymbol{\beta} - \mathbf{x}_0^T\boldsymbol{\beta}]^2 + \sigma^2\mathbf{x}_0^T((\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1}\mathbf{X}^T{\bf X}(\mathbf{X}^T\mathbf{X}+\lambda {\bf I})^{-1}) \mathbf{x}_0 + \sigma^2. \\
+\end{split}
+$$
+
+Since there is no obvious way to simplify this, it will be left like this. This is also practical since it is easy to distinguish between the irreducible error, the variance of prediction and the squared bias. 
+
+## d)
+
+```{r, echo=TRUE, eval=TRUE}
+id <- "1X_8OKcoYbng1XvYFDirxjEWr7LtpNr1m" # Google file ID.
+values <- dget(sprintf("https://docs.google.com/uc?id=%s&export=download", id))
+X = values$X
+dim(X)
+x0 = values$x0
+dim(x0)
+beta=values$beta
+dim(beta)
+sigma=values$sigma
+sigma
+```
+
+```{r, fig.width=4, fig.height=2.5, out.width='70%'}
+bias = function(lambda,X,x0,beta)
+{
+  p = ncol(X)
+  value <-  (t(x0) %*% solve(t(X) %*% X + lambda * diag(p)) %*% t(X) %*% X %*% beta - t(x0) %*% beta)^2
+  return(value)
+}
+lambdas = seq(0, 2, length.out = 500)
+BIAS = rep(NA,length(lambdas))
+for (i in 1:length(lambdas)) BIAS[i] = bias(lambdas[i], X, x0, beta)
+dfBias = data.frame(lambdas = lambdas, bias = BIAS)
+ggplot(dfBias, aes(x = lambdas, y = bias)) + 
+  geom_line(color = "red")+
+  
+  xlab(expression(lambda))+
+  ylab(expression(bias^2))
+```
+ 
+The graph shows that the bias of the ridge regression estimator increases as $\lambda$ grows. OLS is unbiased, so, as expected, the bias is zero when $\lambda = 0$. Note that $\lambda \approx 0.5$ appears to be a sweet spot for this estimator when comparing all $\lambda > 0$, since the bias is low there. Perhaps this can be useful later. 
+
+### e) 
+
+```{r, fig.width=4, fig.height=2.5, out.width='70%'}
+variance = function(lambda, X, x0, sigma)
+{
+  p = ncol(X)
+  inv = solve(t(X)%*%X+lambda*diag(p))
+  value = sigma^2*t(x0) %*% (inv %*% t(X) %*% X %*% inv) %*% x0
+  return(value)
+}
+lambdas = seq(0, 2, length.out = 500)
+VAR=rep(NA,length(lambdas))
+for (i in 1:length(lambdas)) VAR[i]=variance(lambdas[i], X, x0, sigma)
+dfVar = data.frame(lambdas = lambdas, var = VAR)
+ggplot(dfVar, aes(x = lambdas, y = var))+
+  geom_line(color = "green4")+
+  
+  xlab(expression(lambda))+
+  ylab("variance")
+```
+
+The variance begins at $\approx$ `r round(variance(0, X, x0, sigma), digits = 3)` and decreases with $\lambda$. Hence, it is apparent that the ridge regression estimator is advantageous, when looking at solely variance, compared to the OLS estimator, since the variance is decreasing with $\lambda$. Despite this, when adding the bias and the variance, the OLS estimator may still have a lower expected MSE than the ridge regression estimator. Finally, note that the changes in the variance are larger for $\lambda \in [0,2]$ than the changes in the bias (compared to the plot in task d)), which indicates that the variance dominates the change in expected MSE for the ridge regression estimation. 
+
+## f)
+
+```{r}
+exp_mse = BIAS + VAR + sigma^2
+lambdas[which.min(exp_mse)]
+```
+
+```{r, fig.width=4, fig.height=2.5, out.width='70%'}
+dfAll = data.frame(lambda = lambdas, bias = BIAS, var = VAR, exp_mse = exp_mse)
+ggplot(dfAll)+
+  geom_line(aes(x = lambda, y = exp_mse), color = "blue")+
+  
+  geom_line(aes(x = lambda, y = bias), color = "red")+
+  geom_line(aes(x = lambda, y = var), color = "green4")+
+    xlab(expression(lambda))+
+    ylab(expression(E(MSE)))
+```
+
+Now we are able to conclude that the ridge regression estimator has a lower expected MSE compared to the OLS estimator, as gathered from the blue line in the plot. The optimal value of $\lambda$, which minimizes MSE, is $\approx$ `r round(lambdas[which.min(exp_mse)], digits = 3)`. Hence, despite the fact that the bias is higher for the ridge regression estimator, the total expected MSE is lower, since the decrease in variance counters the increase in bias. 
+
+# Problem 2
+
+```{r}
+# Read file.
+id <- "1yYlEl5gYY3BEtJ4d7KWaFGIOEweJIn__" # Google file ID.
+d.corona <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download", id),header=T)
+```
+
+## a) 
+
+The tables are reported below. 
+
+```{r}
+table1 <- summarise(d.corona, deceased = sum(d.corona$deceased),
+                   non_deceased = nrow(d.corona) - deceased)
+knitr::kable(table1)
+
+table2 <- table(d.corona$country, d.corona$sex)
+knitr::kable(table2)
+
+table3 <- table(d.corona$deceased, d.corona$sex)
+rownames(table3) = c("non-deceased", "deceased")
+knitr::kable(table3)
+
+d.france <- filter(d.corona, country == "France")
+table4 <- table(d.france$deceased, d.france$sex)
+rownames(table4) = c("non-deceased", "deceased")
+knitr::kable(table4)
+```
+
+## b) 
+Since we want to understand the probability of decease of covid-19, we fit a logistic regression model as opposed to a linear regression model.
+
+```{r}
+glm.fit <- glm(deceased ~ ., family = "binomial", data = d.corona)
+summary(glm.fit)
+anova(glm.fit, test = "Chisq")
+```
+
+(i) The probability to die of covid for a male age 75 living in Korea can be predicted from the model. The prediction is found by
+
+```{r}
+x0 <-  data.frame(sex = "male", age = 75, country = "Korea")
+pred <- predict(glm.fit, newdata = x0, type = "response")
+pred
+```
+
+Hence, the probability to die of covid for a male age 75 living in Korea is $\approx$ `r round(pred, digits = 3)`.
+
+(ii) The p-value associated with `sexmale` is relatively small, and since the coefficient is positive, this constitutes some evidence that males have a higher probability of dying. 
+
+(iii) Yes. From the output of `anova` we see that `country` has a low p-value, which could be used as evidence that the country of residence has an influence on the probability of decease. Additionally, we see that both the `countryjapan` and `countryKorea` coefficients from the summary have relatively low p-values and are negative, which could be used as evidence that the probability of decease is lower in Japan and Korea compared to the reference category, France. `countryIndonesia` is not significant (large p-value), so there is no evidence that the probability of decease is any higher in Indonesia than in France.
+
+(iv) Since we have used logistic regression, the predicted odds of decease, given an observation $\boldsymbol{x}$, is 
+
+$$ \frac{p(\boldsymbol{x})}{1- p(\boldsymbol{x})} = e^{\boldsymbol{x}^T\hat{\boldsymbol{\beta}}}. $$
+Thus, the odds of decease increases by a factor of $e^{10 \hat{\beta_{\tt{age}}}} \approx$ `r round(exp(10*coef(glm.fit)[3]), digits = 3)` when `age` increases by 10 and all other covariates are held constant.
+
+## c) 
+
+```{r}
+log.fit1 <- glm(deceased ~. + sex:age, data = d.corona, family="binomial")
+summary(log.fit1)
+```
+
+(i) As seen above, we have fitted the full logistic regression with an interaction term between `age` and `sex`. As the summary shows, the interaction effect between `sexmale` and `age` is not significant, since the p-value is large. Hence, although the coefficient is slightly positive, we cannot conclude that age is a greater risk factor for men.
+
+```{r}
+log.fit2 <- glm(deceased ~ . + age:country, data = d.corona, family="binomial")
+summary(log.fit2)
+```
+
+(ii) As seen above, we have fitted the full logistic regression with an interaction term between `age` and `country`. Since `France` is the reference level, and the interaction-term coefficient `age:countryindonesia` has the value $\approx$ `r round(coefficients(log.fit2)[7], digits = 3)` with a somewhat low p-value, we can infer that age is a greater risk factor for the French population than for the Indonesian population. 
+
+## d)
+
+TRUE, TRUE, TRUE, FALSE. 
+
+# Problem 3
+
+```{r, eval=T}
+# Read file.
+id <- "1i1cQPeoLLC_FyAH0nnqCnnrSBpn05_hO" # Google file ID.
+diab <- dget(sprintf("https://docs.google.com/uc?id=%s&export=download", id))
+t = MASS::Pima.tr2
+train = diab$ctrain
+test = diab$ctest
+```
+
+## a)
+
+```{r}
+logReg = glm(diabetes~., data = train, family = "binomial")
+```
+
+(i) We have that 
+
+$$
+\begin{split}
+p_i = \frac{e^{\beta_0 + \beta_1x_{i1} + \beta_2 x_{i2} + \dots + \beta_7 x_{i7}}}{ 1+ 
+e^{\beta_0 + \beta_1x_{i1} + \beta_2 x_{i2} + \dots + \beta_7 x_{i7}}} &:= \frac{e^{\eta_i(x)}}{1+e^{\eta_i(x)}} \implies \frac{p_i}{1-p_i} = \frac{\frac{e^{\eta_i(x)}}{1+e^{\eta_i(x)}}}{1-\frac{e^{\eta_i(x)}}{1+e^{\eta_i(x)}}} = e^{\eta_i(x)} \\ \implies  \mathsf{logit}(p_i) = \mathsf{log}\left(\frac{p_i}{1-p_i}\right) &= \eta_i(x) = \beta_0 + \beta_1x_{i1} + \beta_2 x_{i2} + \dots + \beta_7 x_{i7}
+\end{split}
+$$
+
+(ii) The classification is done below. 
+
+```{r}
+glm.probs <- predict(logReg, newdata = test, type = "response")
+glm.preds <- ifelse(glm.probs > 0.5, 1, 0) 
+conf.table.glm <- table(predicted = glm.preds, true = test$diabetes)
+conf.table.glm
+```
+
+The sensitivity is `r conf.table.glm[2,2]`/(`r conf.table.glm[2,2]` + `r conf.table.glm[1,2]`) $\approx$ `r  round(conf.table.glm[2,2]/(conf.table.glm[2,2]+conf.table.glm[1,2]), digits = 3)` and the specificity is `r conf.table.glm[1,1]`/(`r conf.table.glm[1,1]` + `r conf.table.glm[2,1]`) $\approx$ `r round(conf.table.glm[1,1]/(conf.table.glm[1,1]+conf.table.glm[2,1]), digits = 3)`.
+
+## b)
+
+(i) $\pi_k$ is the prior probability for an observation, given by $\pi_k = P(y=k)$. $f_k(\mathbf{x})$ is the gaussian pdf for class $k$, with mean $\boldsymbol{\mu}_k$ and covariance matrix $\boldsymbol{\Sigma}_k$. In LDA $\boldsymbol{\Sigma}_k = \boldsymbol{\Sigma} \quad \forall k$, whereas in QDA each $\boldsymbol{\Sigma}_k$ are assumed to be class-specific. In this case, the class $1$, i.e. presence of diabetes, has the mean vector $\boldsymbol{\mu}_1$ and the class $0$, i.e. non-presence of diabetes, has the mean vector $\boldsymbol{\mu}_0$. $\boldsymbol{\Sigma}$ is the covariance matrix of both classes, since we are performing LDA. Hence, $f_1(\mathbf{x})$ is the gaussian pdf for class 1, with mean $\boldsymbol{\mu}_1$ and covariance matrix $\boldsymbol{\Sigma}$, while $f_0(\mathbf{x})$ is the gaussian pdf for class 0, with mean $\boldsymbol{\mu}_0$ and covariance matrix $\boldsymbol{\Sigma}$. 
+
+(ii) The fits are seen below
+
+```{r}
+lda.diabetes <- lda(diabetes~., data = train)
+qda.diabetes <- qda(diabetes~., data = train)
+
+# Only need the prob if diabetes is present. 
+lda.diabetes.probs <- predict(lda.diabetes, newdata = test)$posterior[, 2]
+lda.preds <- ifelse(lda.diabetes.probs > 0.5, 1, 0)
+conf.table.lda.diabetes <- table(predicted = lda.preds, true = test$diabetes)
+conf.table.lda.diabetes
+
+# Only need the prob if diabetes is present. 
+qda.diabetes.probs <- predict(qda.diabetes, newdata = test)$posterior[, 2]
+qda.preds <- ifelse(qda.diabetes.probs > 0.5, 1, 0)
+conf.table.qda.diabetes <- table(predicted = qda.preds, true = test$diabetes)
+conf.table.qda.diabetes
+```
+
+The sensitivity and specificity for LDA are thus `r conf.table.lda.diabetes[2,2]`/(`r conf.table.lda.diabetes[2,2]` + `r conf.table.lda.diabetes[1,2]`) $\approx$ `r round(conf.table.lda.diabetes[2,2]/sum(conf.table.lda.diabetes[, 2]), digits = 3)` and `r conf.table.lda.diabetes[1,1]`/(`r conf.table.lda.diabetes[1,1]` + `r conf.table.lda.diabetes[2,1]`) $\approx$ `r round(conf.table.lda.diabetes[1,1]/sum(conf.table.lda.diabetes[, 1]), digits = 3)`, respectively. The sensitivity and specificity of QDA are `r conf.table.qda.diabetes[2,2]`/(`r conf.table.qda.diabetes[2,2]` + `r conf.table.qda.diabetes[1,2]`) $\approx$ `r round(conf.table.qda.diabetes[2,2]/sum(conf.table.qda.diabetes[, 2]), digits = 3)` and `r conf.table.qda.diabetes[1,1]`/(`r conf.table.qda.diabetes[1,1]` + `r conf.table.qda.diabetes[2,1]`) $\approx$ `r round(conf.table.qda.diabetes[1,1]/sum(conf.table.qda.diabetes[, 1]), digits = 3)`, respectively.
+
+The difference between the methods is that the covariance matrix is assumed to be equal across all classes (in this case: both classes) in LDA, which gives linear discriminant functions and a linear decision boundary, while in QDA the covariance matrix is assumed to be class-specific, which gives a quadratic discriminant function for each class and a quadratic decision boundary. 
+
+## c)
+
+(i) In the KNN approach, a new observation is classified by using the $k$ nearest points (in Euclidean distance) to the observation in question. The new observation is classified to the most occurring class among the $k$ nearest points, i.e. to the class with the highest estimated probability. 
+(ii) We would choose the tuning parameter $k$ based on a $\kappa$-fold cross validation, with $\kappa = 5$ or $\kappa = 10$.
+(iii) The KNN classification fit can be seen below
+
+```{r}
+set.seed(123) # For reproducibility, e.g. in case of ties. 
+knn.diabetes <- knn(train = train, test = test, cl = train$diabetes, k=25, prob=T)
+conf.table.knn <- table(predicted = knn.diabetes, true = test$diabetes) 
+conf.table.knn
+```
+
+The sensitivity is `r conf.table.knn[2,2]`/(`r conf.table.knn[2,2]` + `r conf.table.knn[1,2]`) $\approx$ `r  round(conf.table.knn[2,2]/(conf.table.knn[2,2]+conf.table.knn[1,2]), digits = 3)` and the specificity is `r conf.table.knn[1,1]`/(`r conf.table.knn[1,1]` + `r conf.table.knn[2,1]`) $\approx$ `r round(conf.table.knn[1,1]/(conf.table.knn[1,1]+conf.table.knn[2,1]), digits = 3)`.
+
+## d) ROC curves
+
+```{r, fig.width=4, fig.height=2.5, out.width='70%'}
+knn.probs <- ifelse(knn.diabetes == 0, 1 - attributes(knn.diabetes)$prob, attributes(knn.diabetes)$prob)
+glm.log.probs <- predict(logReg, newdata = test, type="response")
+
+ldaroc = roc(response = test$diabetes, predictor = lda.diabetes.probs, direction = "<")
+qdaroc = roc(response = test$diabetes, predictor = qda.diabetes.probs, direction = "<")
+knnroc = roc(response = test$diabetes, predictor = knn.probs, direction = "<")
+glm.logroc = roc(response = test$diabetes, predictor = glm.log.probs, direction = "<")
+
+
+ggroc(list(LDA  = ldaroc, QDA = qdaroc, KNN = knnroc, LOG = glm.logroc))
+```
+The area under the ROC curve is `r round(auc(ldaroc), digits = 3)` for LDA, `r round(auc(qdaroc), digits = 3)` for QDA, `r round(auc(knnroc), digits = 3)` for KNN and `r round(auc(glm.logroc), digits = 3)` for logistic regression (LOG). We see that LDA performs the best with respect to the AUC, which indicates that a linear decision boundary is appropriate. Despite this, if the task is to create an interpretable model, we would choose the logistic regression model, since it has almost as high AUC as LDA and is more interpretable with its readily available coefficients and associated formulas for probability and odds. 
+
+# Problem 4
+
+## a)
+
+$$
+\begin{split}
+\hat y_{(-i)} &= \mathbf{x}_i^T \hat{\boldsymbol{\beta}}_{(-i)} \\
+&= \mathbf{x}_i^T (X_{(-i)}^T X_{(-i)})^{-1}X_{(-i)}^T \mathbf{y}_{(-i)} \\
+&= \mathbf{x}_i^T (X^TX - \mathbf{x}_i\mathbf{x}_i^T)^{-1}(X^T \mathbf{y}-\mathbf{x}_i y_i) \\
+&= \mathbf{x}_i^T\left[(X^TX)^{-1} + \frac{(X^TX)^{-1}\mathbf{x}_i\mathbf{x}_i^T(X^TX)^{-1}}{1-\mathbf{x}_i^T(X^TX)^{-1}\mathbf{x}_i}\right](X^T\mathbf{y}-\mathbf{x}_i y_i), \quad \text{Sherman-Morrison} \\
+&= \mathbf{x}_i^T\left[(X^TX)^{-1} + \frac{(X^TX)^{-1}\mathbf{x}_i\mathbf{x}_i^T(X^TX)^{-1}}{1-h_i}\right](X^T\mathbf{y}-\mathbf{x}_i y_i) \\
+&= \mathbf{x}_i^T(X^TX)^{-1}X^T\mathbf{y} - \mathbf{x}_i^T(X^TX)^{-1}\mathbf{x}_i y_i+\mathbf{x}_i^T\frac{(X^TX)^{-1}\mathbf{x}_i\mathbf{x}_i^T(X^TX)^{-1}}{1-h_i}X^T\mathbf{y}-\mathbf{x}_i^T\frac{(X^TX)^{-1}\mathbf{x}_i\mathbf{x}_i^T(X^TX)^{-1}}{1-h_i}\mathbf{x}_i y_i \\
+&= \mathbf{x}_i^T(X^TX)^{-1}X^T\mathbf{y} - \mathbf{x}_i^T\left[\frac{(X^TX)^{-1}\mathbf{x}_i}{1-h_i}\right]( y_i(1-h_i) - \mathbf{x}_i^T(X^TX)^{-1}X^T\mathbf{y} + h_iy_i) \\
+&= \mathbf{x}_i^T\hat{\boldsymbol{\beta}} - \mathbf{x}_i^T\left[\frac{(X^TX)^{-1}\mathbf{x}_i}{1-h_i}\right]( y_i - \mathbf{x}_i^T\hat{\boldsymbol{\beta}}). 
+\end{split}
+$$
+
+This gives 
+
+$$
+\begin{split}
+y_i - \hat y_{(-i)} &= y_i - \mathbf{x}_i^T\hat{\boldsymbol{\beta}} + \mathbf{x}_i^T\left[\frac{(X^TX)^{-1}\mathbf{x}_i}{1-h_i}\right]( y_i - \mathbf{x}_i^T\hat{\boldsymbol{\beta}}) \\
+&= (y_i - \mathbf{x}_i^T\hat{\boldsymbol{\beta}})\left(1+\frac{h_i}{1-h_i}\right) \\
+&= \frac{y_i - \hat y_i}{1-h_i}, 
+\end{split}
+$$
+
+which gives 
+
+$$
+CV = \frac{1}{N}\sum_{i = 1}^{N}(y_i - \hat y_{(-i)})^2 = \frac{1}{N}\sum_{i = 1}^{N}\left(\frac{y_i - \hat y_i}{1-h_i}\right)^2,
+$$
+
+which completes the proof. 
+
+## b)
+
+FALSE, TRUE, FALSE, FALSE. 
+
+# Problem 5
+
+```{r}
+id <- "19auu8YlUJJJUsZY8JZfsCTWzDm6doE7C" # Google file ID.
+d.bodyfat <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download", id),header=T)
+```
+
+## a)
+
+```{r}
+lm.fit5 <- lm(bodyfat ~ age + weight + bmi, data = d.bodyfat)
+```
+
+The $R^2$ is $\approx$ `r round(summary(lm.fit5)$r.squared, digits = 4)`.
+
+## b)
+
+```{r, fig.width=4, fig.height=2.5, out.width='70%'}
+set.seed(4268)
+
+boot.fn <-  function(data, index) {
+  return(summary(lm(bodyfat ~ age + weight + bmi, data = data, subset = index))$r.squared)
+}
+
+B <- 1000
+r.squared <- rep(NA, B)
+for (b in 1:B){
+  r.squared[b] <- boot.fn(d.bodyfat, sample(nrow(d.bodyfat), nrow(d.bodyfat), replace = T))
+}
+
+df = data.frame(r.squared = r.squared, norm_den = dnorm(r.squared, mean(r.squared),
+                                                        sd(r.squared)))
+ggplot(df) + geom_histogram(aes(x = r.squared, y = ..density..), fill = "grey80",color = "black") +
+   theme_minimal()
+
+sd(r.squared)
+quantile(r.squared, c(0.025, 0.975))
+```
+
+The standard error estimated from the bootstrap is `r round(sd(r.squared)/summary(lm.fit5)$r.squared*100, digits = 3)` % of $R^2$. This gives us a measure of the uncertainty in $R^2$, which illustrates that the proportion of variance explained by the linear regression is not a fixed number, but depends on the training data. 
+
