@@ -209,6 +209,7 @@ Which of the following statements are true, which false?
 ```{r}
 glm.fit <- glm(deceased~., family = "binomial", data = d.corona)
 summary(glm.fit)
+anova(glm.fit, test = "Chisq")
 ```
 
 
@@ -222,11 +223,11 @@ summary(glm.fit)
 
 (iii) Increasing the age by 10 years, $x_{age}^* = x_{age}+10$, and holding all other covariates constant, the odds ratio to die increases by a factor of 1.97.
 
-*Answer:* TRUE
+*Answer:* FALSE \textcolor{red}{Why is this false? I have asked the Q on Piazza.} This is the case because the odds ratio is constantly equal to $\exp{10 \cdot \beta_{sex}}$, while the odds changes with this amount (the odds ratio), when $x$ is changed by 10. 
 
 (iv) The probability to die is approximately $3.12$ larger for males than for females.
 
-*Answer:* \textcolor{red}{Kom hit ;)}
+*Answer:* FALSE
 
 ## c) (1P)
 
@@ -237,6 +238,27 @@ Hints:
 * Make one plot and add lines for each country/sex. 
 * A useful function to generate gridded data for prediction is `expand.grid()`. For example `newdata = expand.grid(sex="male",age= seq(20,100,1) ,country="France")` generates a grid for males in France over a range of ages between 20 and 100.
 
+```{r}
+x.age <- seq(20, 100, 1)
+y.male.france <- predict(glm.fit, newdata = expand.grid(sex = "male", age = x.age, country = "France"), type = "response")
+y.female.france <- predict(glm.fit, newdata = expand.grid(sex = "female", age = x.age, country = "France"), type = "response")
+y.male.japan <- predict(glm.fit, newdata = expand.grid(sex = "male", age = x.age, country = "japan"), type = "response")
+y.female.japan <- predict(glm.fit, newdata = expand.grid(sex = "female", age = x.age, country = "japan"), type = "response")
+y.male.indonesia <- predict(glm.fit, newdata = expand.grid(sex = "male", age = x.age, country = "indonesia"), type = "response")
+y.female.indonesia <- predict(glm.fit, newdata = expand.grid(sex = "female", age = x.age, country = "indonesia"), type = "response")
+y.male.korea <- predict(glm.fit, newdata = expand.grid(sex = "male", age = x.age, country = "Korea"), type = "response")
+y.female.korea <- predict(glm.fit, newdata = expand.grid(sex = "female", age = x.age, country = "Korea"), type = "response")
+
+
+plot(x.age, y.male.france, type = "l", ylab = "P(death)", xlab = "Age")
+lines(x.age, y.female.france, lty = 2, col = "black")
+lines(x.age, y.male.japan, col = "red")
+lines(x.age, y.female.japan, lty = 2, col = "red")
+lines(x.age, y.male.indonesia, col = "blue")
+lines(x.age, y.female.indonesia, lty = 2, col = "blue")
+lines(x.age, y.male.korea, col = "green")
+lines(x.age, y.female.korea, lty = 2, col = "green")
+```
 
 
 ## d) (3P)
@@ -244,21 +266,34 @@ Hints:
 As a statistician working on these data, you are asked the following questions: 
 
   (i) Have males generally a higher probability to die of coronavirus than females?
+  
+As shown from the full model in b), males do have a higher probability to die than females, since the odds for males is higher. 
 
   (ii) Is age a greater risk factor for males than for females?
 
+```{r}
+fit2 <-  glm(deceased ~ . + age:sex, data = d.corona, family="binomial")
+summary(fit2)
+```
+
+We cannot conclude that this is the case, since the interaction between sex and age is not significant. Thus, we have no evidence that age is a greater risk for males than females, since the simple null hypothesis for the coefficient of the interaction term cannot be discarded.  
+
   (iii) Is age a greater risk factor for the French population than for the Korean population?
+  
+```{r}
+fit3 <-  glm(deceased ~ . + age:country, data = d.corona, family="binomial")
+summary(fit3)
+```
+
+The same conclusion as in (ii): We cannot conclude that this is the case, since the interaction between Korea and age is not significant to any logical level. 
 
 Answer the questions by fitting appropriate models (1P each). 
-
-
-
 
 ## e) Interpret your model (1P)
 
 According to your model fitted in part b), it looks like the French population is at a much higher risk of dying from Covid-19 than the other countries. Do you trust this result? How could it be influenced by the way the data were collected? 
 
- 
+No, I think this sounds suspicious. I imagine that there has been run tests on more severe cases in France compared to the ones run in the other cases, i.e. that people in France had more severe symptoms before testing. 
 
 ## f) Multiple choice (2P)
 
@@ -268,13 +303,21 @@ Consider the classification tree below to answer:
 
 (i) The probability of dying (`deceased = 1`) is about 0.46 for a French person with age above 91. 
 
+*Answer:* TRUE
+
 (ii) Age seems to be a more important predictor for mortality than sex.
+
+*Answer:* TRUE
 
 Consider the LDA code and output below:
 
 (iii) The "null rate" for misclassification is 2.24%, because this is the proportion of deaths among all cases in the dataset. No classifier should have a higher misclassification rate.
 
+*Answer:* TRUE (even though I get the null rate: `r sum(d.corona$deceased == 1)/sum(d.corona$deceased == 0) * 100` \%).
+
 (iv) LDA is not a very useful method for this dataset, among other reasons because it does not estimate probabilities, but also because the misclassification error is too high.
+
+*Answer:* FALSE
 
 
 ```{r, eval = T, echo=F,fig.width=6,fig.height=5,out.width="60%"}
@@ -291,9 +334,6 @@ table(predict=predict(lda(deceased ~ age + sex + country, data=d.corona))$class,
 ```
 
  
-
-
-
 # Problem 3 (14P)
  
 
@@ -329,39 +369,84 @@ We would like to build models that help us to understand which predictors are mo
 
 ## a) (1P)
 
-Before we start analysing the data, visualize the distributions of all continuous or integer variables with histograms. Suggest a transformation for the response variable `totcst` (hint: it is a _standard transformation_ that we have used earlier in the course). Important: **you should fit all models with the transformed version of the response variable `totcst` from now on. Leave all other variables untransformed.** 
+Before we start analyzing the data, visualize the distributions of all continuous or integer variables with histograms. Suggest a transformation for the response variable `totcst` (hint: it is a _standard transformation_ that we have used earlier in the course). Important: **you should fit all models with the transformed version of the response variable `totcst` from now on. Leave all other variables untransformed.** 
 
+```{r}
+hist(d.support$totcst)
+hist(d.support$age)
+hist(d.support$hrt)
+hist(d.support$edu)
+hist(d.support$meanbp)
+hist(d.support$scoma)
+hist(d.support$num.co)
+hist(d.support$temp)
+hist(d.support$resp)
+hist(d.support$pafi)
+```
 
- 
+A log transform will be used since the distribution of totcst is skewed. 
 
 ## b) (3P)
 
 Fit a multiple linear regression model with the six covariates `age`, `temp`, `edu`, `resp`, `num.co` and `dzgroup` and the (transformed version of the) response `totcst`. 
 
+```{r}
+linear.fit <- lm(log(totcst) ~ age + temp + edu + resp + num.co + dzgroup, data = d.support)
+summary(linear.fit)
+```
+
+
 (i) How much/by which factor are the total costs expected to change when a patient's age increases by 10 years, given that all other characteristica of the patient are the same? Use the transformed respose to fit the model, but report the result on the original (back-transformed) scale of the response. (1P)
+
+*Answer:* When a patient's age increases by 10 years, the total costs are expected to be reduced with $\exp{(10 \cdot -0.0069950)} \approx 0.932$ 
+
 (ii) Do a residual analysis using the Tukey-Anscombe plot and the QQ-diagram. Are the assumptions fulfilled? (1P)
+
+```{r}
+library(ggfortify)
+autoplot(linear.fit, which = c(1,2))
+```
+
+The assumptions of the linear model are fulfilled, when based on the two diagrams above, since the residual plot shows no clear pattern, while the QQ-diagram seems to behave nicely.
+
 (iii) Does the effect of age depend on the disease group? Do a formal test and report the $p$-value. (1P)
 
+```{r}
+dzgroup.age <- lm(log(totcst) ~ temp + edu + resp + num.co + dzgroup * age, data = d.support)
+anova(dzgroup.age)
+```
 
+Yes, the $p$-value of the interaction term between dzgroup and age is 0.0002019, which is significant to a reasonable level. Hence, the effect of age depends on the disease group. 
 
 ## c) (3P)
-
 
 In order to build a more robust model for inference and prediction of the total costs, continue using ridge regression. 
 Create a training set with 80% of the data and a test set with the remaining 20% (1P). Run cross-validation to find the largest value of $\lambda$ such that the error is within 1 standard error of the smallest $\lambda$ (1P). Report the test MSE of the ridge regression where you used the respective $\lambda$ (1P).
 
-
 Be careful: we still use the same transformation for the response as in b) -- you should report the MSE using the transformed version of `totcst` (i.e., do **not back-transform** the MSE to the original scale).
 
+```{r}
+library(glmnet)
+set.seed(4268)
+train.ind = sample(1:nrow(d.support), 0.8*nrow(d.support))
+d.support.train = d.support[train.ind,]
+d.support.test = d.support[-train.ind,]
 
-**R-hints**:
-```{r, eval=F}
-set.seed(12345)
-train.ind = sample(1:nrow(d.support), ... *nrow(d.support))
-d.support.train = d.support[...,]
-d.support.test = d.support[...,]
+x.train <- model.matrix(log(totcst) ~ ., data = d.support.train)[, -1]
+y.train <- log(d.support.train$totcst)
+x.test <- model.matrix(log(totcst) ~ ., data = d.support.test)[, -1]
+y.test<- log(d.support.test$totcst)
+
+cv.ridge <- cv.glmnet(x.train, y.train, alpha = 0)
+plot(cv.ridge)
+lambda.ridge <- cv.ridge$lambda.1se
+ridge <- glmnet(x.train, y.train, alpha = 0, lambda = lambda.ridge)
+ridge.pred <- predict(ridge, s = lambda.ridge, newx = x.test)
+# MSE 
+mean((ridge.pred - y.test)^2)
 ```
 
+\textcolor{red}{Kom hit! Tror det er noe rart med resultatet her!}
 
 
 ## d) (3P)
@@ -384,8 +469,6 @@ Now choose two other methods that you know from the course and try to build mode
 (ii) One model/method based on regression trees (2P).
 
 Very briefly discuss or explain your choices (1-2 sentences each).
-
-
 
 
 
