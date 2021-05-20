@@ -39,7 +39,7 @@ $$
 
 where $n_j$ is the size of the $j^{\text{th}}$ fold. 
 
-For classification situations, the same algorithm can be followed, but instead of calculating the MSE, the ratio of misclassified points is calculated in each iteration and the total $k$-fold misclassification rate is found in the end, i.e. the loss function is adapted depending on the situation. 
+For classification situations, the same algorithm can be followed, but instead of calculating the MSE, the ratio of misclassified points is calculated in each iteration and the total (average) $k$-fold misclassification rate is found in the end, i.e. the loss function is adapted depending on the situation. 
 
 c) Relate to one example from regression. Ideas are the complexity w.r.t. polynomials of increasing degree in multiple linear regression, or $K$ in KNN-regression.
 
@@ -61,10 +61,10 @@ c) What are recommended values for $k$, and why?
   
   Hint: the words "bias", "variance" and "computational complexity" should be included.
 
-a) _Advantages_ of $k$-fold compared to validation set: Less variability in validation set error, since the dependency on which set of observations are used for training and testing (which is very prominent with the validation set approach) is lower. Moreover, the bias is lowe, since a bigger part of the data is used while training each of the models. 
-_Disadvantages_: More computationally intensive, since more simulations are run. Also, the variance between different sets of data is higher, since the training on the different folds are somewhat correlated (I do not quite understand this, read posts I found on Stackoverflow.etc). 
+a) _Advantages_ of $k$-fold compared to validation set: Less variability than in validation set error, since the dependency on which set of observations are used for training and testing (which is very prominent with the validation set approach) is lower. Moreover, the bias is lower, since a bigger part of the data is used while training each of the models. In other words, the validation set approact is the "worst of both worlds" (larger variance and larger bias compared to $k$-fold CV).
+_Disadvantages_: More computationally intensive, since more simulations are run. 
 b) _Advantages_ of $k$-fold compared to LOOCV: Less variance between different data sets compared to LOOCV, because in LOOCV we are averaging over data which is positively correlated. Less computationally expensive then LOOCV, since the folds are bigger than one. 
-_Disadvantages_ of $k$-fold: Larger bias, since less of the data is used when training, compared to LOOCV. 
+_Disadvantages_ of $k$-fold: Larger bias, since less of the data is used when training, compared to LOOCV. There is no randomness in the splits in LOOCV. 
 c) The recommended values for $k$ are 5 or 10, since these give a nice balance between variance and bias, such that none of these are very dominating. Too small values of $k$ give small variance but high bias (e.g. $k = 2$), and too large values of $k$ give small bias but high variance (e.g. LOOCV). 
 
 
@@ -73,8 +73,12 @@ c) The recommended values for $k$ are 5 or 10, since these give a nice balance b
 The task here is to devise an algorithm to "prove" that the wrong way is wrong and that the right way is right. 
 
 a) What are the steps of such an algorithm? Write down a suggestion. Hint: How do you generate data for predictors and class labels, how do you do the classification task, where is the CV in the correct way and wrong way inserted into your algorithm? Can you make a schematic drawing of the right and the wrong way?
-  
-  
+
+Steps of such an algorithm are: Make a simulation with a large amount of predictors and a small amount of data. This data should be generated from a known distribution, e.g. a Gaussian distribution, since then the correct test error when performing model validation can be calculated. The prediction on the data is split into two parts. Firstly, a small amount of the predictors are chosen, according to the ones that have the largest correlation with the class labels in the data. Secondly, a classifier is applied only to the 100 predictors. 
+
+When performing CV in the wrong way, one first chooses the predictors and then runs CV only on these chosen predictors when used in the given classifier. More specifically, only the second step is used when performing CV, i.e. CV is used to calculate the test error when using only the small subset, selected based on correlation with the class labels, of the predictors. 
+
+When performing CV in the correct way, CV is performed in both steps. More specifically, the data is split into folds, in which the subset of predictors is chosen and the test error is calculated across all the splits. This is the correct way of doing it since both parts mentioned above are a part of the training process, which must be done in the CV. 
   
 b) We are now doing a simulation to illustrate the selection bias problem in CV, when it is applied the wrong way. Here is what we are (conceptually) going to do:
   
@@ -94,7 +98,7 @@ Classification task:
 One possible version of this is presented in the R-code below. Go through the code and explain what is done in each step, then run the code and observe if the results are in agreement with what you expected. Make changes to the R-code if you want to test out different strategies.
 
 We start by generating data for $n=50$ observations
-```{r,eval=FALSE}
+```{r}
 library(boot)
 # GENERATE DATA; use a seed for reproducibility
 set.seed(4268)
@@ -102,7 +106,7 @@ n=50 #number of observations
 p=5000 #number of predictors
 d=25 #top correlated predictors chosen
 #generating predictor data
-xs=matrix(rnorm(n*p,0,4),ncol=p,nrow=n) #simple way to to uncorrelated predictors
+xs=matrix(rnorm(n*p,0,4),ncol=p,nrow=n) #simple way to make uncorrelated predictors
 dim(xs) # n times p
 # generate class labels independent of predictors - so if all classifies as class 1 we expect 50% errors in general
 ys=c(rep(0,n/2),rep(1,n/2)) #now really 50% of each
@@ -110,7 +114,7 @@ table(ys)
 ```
 
 **WRONG CV**: Select the 25 most correlated predictors outside the CV.
-```{r, eval=FALSE}
+```{r}
 corrs=apply(xs,2,cor,y=ys)
 hist(corrs)
 selected=order(corrs^2,decreasing = TRUE)[1:d] #top d correlated selected
@@ -118,7 +122,7 @@ data=data.frame(ys,xs[,selected])
 ```
 
 Then run CV around the fitting of the classifier - use logistic regression and built in `cv.glm()` function
-```{r, eval=FALSE}
+```{r}
 logfit=glm(ys~.,family="binomial",data=data)
 cost <- function(r, pi = 0) mean(abs(r-pi) > 0.5)
 kfold=10
@@ -129,9 +133,11 @@ Observe a zero misclassification rate!
 
 
 **CORRECT CV**: Do not pre-select predictors outside the CV, but as part of the CV. We need to code this ourselves:
-```{r, eval=FALSE}
+```{r}
 reorder=sample(1:n,replace=FALSE)
 validclass=NULL
+validclass2=NULL # I tried a different way to predict from logistic regression (below)
+# Leads to the same result!!
 for (i in 1:kfold)
 {
   neach=n/kfold
@@ -144,10 +150,14 @@ for (i in 1:kfold)
   data=traindata[,c(selected,p+1)]
   trainlogfit=glm(y~.,family="binomial",data=data)
   pred=plogis(predict.glm(trainlogfit,newdata=validdata[,selected]))
+  pred2=predict(trainlogfit, type = "response", newdata = validdata[,selected])
   validclass=c(validclass,ifelse(pred > 0.5, 1, 0))
+  validclass2=c(validclass2,ifelse(pred2 > 0.5, 1, 0))
 }
 table(ys[reorder],validclass)
+table(ys[reorder],validclass2)
 1-sum(diag(table(ys[reorder],validclass)))/n
+1-sum(diag(table(ys[reorder],validclass2)))/n
 ```
 
 ## Problem 4: Probability of being part of a bootstrap sample
@@ -195,7 +205,7 @@ $$
 
 Implement your algorithm from 5 both using for-loop and using the `boot` function. Hint: see page 195 of our ISLR book. Use our SLID data set and provide standard errors for the coefficient for age. Compare with the theoretical value $({\bf X}^T{\bf X})^{-1}\hat{\sigma}^2$ that you find in the output from the regression model.
 
-```{r,eval=FALSE}
+```{r}
 library(car)
 library(boot)
 SLID = na.omit(SLID)
@@ -205,7 +215,7 @@ summary(SLID.lm)$coeff["age",]
 ```
 
 Now go ahead and use bootstrap to estimate the 95\% CI. 
-```{r, eval=FALSE}
+```{r}
 set.seed(4268) # For reproducibility. 
 
 # Manually
@@ -221,6 +231,8 @@ mean(ages)
 sd(ages)
 quantile(ages, c(0.025, 0.975))
 
+# Since the parameter estimates for Beta look approx normally distributed (below):
+c(mean(ages) - 1.96*sd(ages),mean(ages) + 1.96*sd(ages))
 
 # Using boot-function.
 boot.fn <- function(data, index){
@@ -228,7 +240,6 @@ boot.fn <- function(data, index){
 }
 
 boot(SLID, boot.fn, B)
-
 
 confint(SLID.lm) # Compare to what R gives us when fitting the model.
 
@@ -238,7 +249,4 @@ data = data.frame(beta_hat = ages, norm_den = dnorm(ages, mean(ages),
 ggplot(data) + geom_histogram(aes(x = ages, y = ..density..), fill = "grey80", 
     color = "black") + geom_line(aes(x = ages, y = norm_den), color = "red") + 
     theme_minimal()
-
 ```
-
-
