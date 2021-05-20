@@ -1,0 +1,56 @@
+---
+title: "Problem xy (use separate files for each problem)"
+author: "Candidate number "
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  pdf_document
+# html_document
+---
+  
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, tidy=TRUE,message=FALSE,warning=FALSE,strip.white=TRUE,prompt=FALSE,
+                      cache=TRUE, size="scriptsize",fig.width=4, fig.height=3,  comment = "#>")
+```
+
+
+You can start with an R-chunk where you load some R packages, for example as follows (replace with the R packages you need to solve the task). But replace the chunk option by `echo=FALSE`, because it is not something you need to print in the pdf you upload.
+
+```{r, echo = FALSE}
+library(knitr)
+library(MASS)
+library(keras)
+library(caret)
+library(pls)
+library(glmnet)
+library(gam)
+library(gbm)
+library(randomForest)
+```
+
+REPLACE
+
+```{r}
+id <- "1nLen1ckdnX4P9n8ShZeU7zbXpLc7qiwt" # google file ID
+d.worm <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download", id))
+head(d.worm)
+```
+
+
+## a)
+
+R code, results and answers to sub-question a)
+
+
+## b) 
+Below you have to complete the code and then replace `eval=FALSE` by `eval=TRUE` in the chunk options:
+```{r, eval=FALSE, echo=TRUE}
+ggplot(d.worm,aes(x= ... ,y=  ... ,colour= ...)) + geom_point() + theme_bw()
+```
+
+Note that the default figure width and height have been set globally as `fig.width=4, fig.height=3`, but if you would like to change that (e.g., due to space constraints), you can include a different width and height directly into the chunk options, again using `fig.width=..., fig.height=...`.
+
+## c)
+Here is an example with LaTeX code: $y_i = \beta_0 + \beta_1 x_i + \epsilon_i$, where $\beta_0=1$ and $\beta_1= 2$. In display mode you use for example 
+
+$$y_i = \beta_0 + \beta_1 x_i + \epsilon_i \ , \epsilon_i \sim \mathcal{N}(0,\sigma^2) \ .$$
