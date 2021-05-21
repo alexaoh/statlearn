@@ -427,7 +427,7 @@ Be careful: we still use the same transformation for the response as in b) -- yo
 
 ```{r}
 library(glmnet)
-set.seed(4268)
+set.seed(12345)
 train.ind = sample(1:nrow(d.support), 0.8*nrow(d.support))
 d.support.train = d.support[train.ind,]
 d.support.test = d.support[-train.ind,]
@@ -437,17 +437,19 @@ y.train <- log(d.support.train$totcst)
 x.test <- model.matrix(log(totcst) ~ ., data = d.support.test)[, -1]
 y.test<- log(d.support.test$totcst)
 
+set.seed(4268)
 cv.ridge <- cv.glmnet(x.train, y.train, alpha = 0)
 plot(cv.ridge)
 lambda.ridge <- cv.ridge$lambda.1se
 ridge <- glmnet(x.train, y.train, alpha = 0, lambda = lambda.ridge)
+coef(ridge)
+plot(glmnet(x.train, y.train, alpha = 0), "lambda")
 ridge.pred <- predict(ridge, s = lambda.ridge, newx = x.test)
 # MSE 
 mean((ridge.pred - y.test)^2)
 ```
 
-\textcolor{red}{Kom hit! Tror det er noe rart med resultatet her!}
-
+The MSE is reported above. 
 
 ## d) (3P)
 
@@ -459,21 +461,80 @@ Proceed as follows:
 (ii) Choose an optimal number of principal components (PCs) using cross-validation (1P).
 (iii)  Report the MSE of the test set when using the respective set of PCs and compare to the result from ridge regression. Conclusion? (1P)
 
+```{r}
+library(pls)
+set.seed(234)
+# PLS regression.
+pls.fit <- plsr(log(totcst) ~ ., data = d.support.train, scale = TRUE, validation = "CV")
+summary(pls.fit)
+validationplot(pls.fit, val.type = "MSEP")
+# Optimal number of PCs are 4 (Ockham's razor/when choosing the simplest model which is almost optimal)
+pls.pred <- predict(pls.fit, d.support.test, ncomp = 4)
+mean((pls.pred - log(d.support.test$totcst))^2)
+```
 
+The MSE is slightly smaller in this case, compared to the result when using Ridge regression. Thus, PLS is a better choice than Ridge regression, even though the results do not differ by a lot, since prediction is the sole aim in this case.  
 
 ## e) (4P)
 
 Now choose two other methods that you know from the course and try to build models with even lower test MSEs than those found so far (imagine that this is a competition where the lowest test MSE wins). Use the same training and test dataset as generated above. And remember that we are still _always_ working with the transformed version of the response variable (`totcst`). In particular, use
 
 (i) One model that involves non-linear transformations of the covariates (e.g., splines, natural splines, polynomials etc) that are combined to a GAM (2P).
+
+```{r}
+# GAM.
+library(gam)
+gam1 <- gam(log(totcst) ~ dzgroup + ns(age, 4) + num.co + race 
+            + income + s(edu, 4) + poly(temp, 3)
+            + ns(pafi, 5) + poly(scoma, 3)
+            + s(meanbp) + ns(hrt, 3) + bs(resp, 5), data = d.support.train)
+#plot(gam1)
+pred.gam <- predict(gam1, newdata = d.support.test)
+mean((pred.gam - log(d.support.test$totcst))^2)
+```
+
 (ii) One model/method based on regression trees (2P).
+
+```{r}
+# Random Forest.
+library(randomForest)
+set.seed(4268)
+m <- round(ncol(d.support.train)/3) # regression.
+trees <- seq(from = 100, to = 800, by = 25)
+mses <- rep(0, length(trees))
+j <- 1
+# for (i in trees){ # Try different amounts of trees B, to see where the error stabilizes. Did not really stabilize.
+#   forest.fit <- randomForest(log(totcst) ~ ., data = d.support.train, mtry = m, ntree = i, importance = T)
+#   forest.pred <- predict(forest.fit, newdata = d.support.test)
+#   mse <- mean((forest.pred - log(d.support.test$totcst))^2)
+#   mses[j] <- mse
+#   j <- j+1
+# } # very slow loop. 
+```
+
+```{r}
+#plot(trees, mses, type = "l", xlab = "Number of trees B", ylab = "MSE test")
+# since they did not really stabilize, choose B = 1000 (e.g.)
+train.predictors <- d.support.train[, -7] # remove totcst
+y.train <- log(d.support.train[, 7]) # only totcst
+test.predictors <- d.support.test[, -7] # remove totcst
+y.test <- log(d.support.test[, 7]) # only totcst
+
+# Way better method compared to the foor-loop above! (a lot more effective)
+forest.fit <- randomForest(train.predictors, y = y.train, xtest = test.predictors,
+                           ytest = y.test, mtry = m, ntree = 1000, importance = T)
+plot(1:1000, forest.fit$test$mse, col = "blue", type = "l", ylim = c(0.815, 0.90))
+# Choose B = 1000.
+forest.fit$test$mse[1000]
+```
 
 Very briefly discuss or explain your choices (1-2 sentences each).
 
+The first choice was a GAM with several different non-linear predictors. These were chosen somewhat randomly in order to reduce the test MSE. 
 
+The second choice was a random forest, since this can be made better that bagging (less correlated trees) in many cases, and is simpler than boosting, which could also have been used. 
 
 # Problem 4 (Mixed questions; 6P)
-
 
 ## a) 2P
 
@@ -492,6 +553,30 @@ $$
 
 Write down the basis functions (1P) and the design matrix (1P) of this model.
 
+The basis functions of the model are (without the intercept)
+
+$$
+X, X^2, X^3, (X-1)_+^3 \text{ and } (X-2)_+^3,
+$$
+where 
+
+$$
+(X-q)_+^3 = \begin{cases}
+    (X-q_j)^3 &, X > q_j\\
+    0&,\text{otherwise.} 
+  \end{cases}
+$$
+
+The design matrix of the model is
+
+$$
+\begin{pmatrix}
+1 & x_1 & x_1^2 & x_1^3 & (x_1-1)_+^3 & (x_1-2)_+^3 \\
+1 & x_2 & x_2^2 & x_2^3 & (x_2-1)_+^3 & (x_2-2)_+^3 \\
+\vdots & \vdots & \vdots & \vdots & \vdots & \vdots \\
+1 & x_n & x_n^2 & x_n^3 & (x_n-1)_+^3 & (x_n-2)_+^3 
+\end{pmatrix}.
+$$
 
 
 ## b) Multiple choice - 2P
@@ -503,13 +588,13 @@ Inference vs prediction: Which of the following methods are suitable when the ai
 (iii) Logistic regression 
 (iv) Support Vector Machines
 
- 
+The suitable methods for inference are (i), (ii) and (iii). SVMs are not suited for inference, since they are hard to interpret. 
 
 ## c) Multiple choice - 2P
 
 We again look at the Covid-19 dataset from Problem 2 to study some properties of the bootstrap method. Below we estimated the standard errors of the regression coefficients in the logistic regression model with `sex`, `age` and `country` as predictors using 1000 bootstrap iterations (column `std.error`). These standard errors can be compared to those that we obtain by fitting a single logistic regression model using the `glm()` function. Look at the R output below and compare the standard errors that we obtain from these two approaches (note that the `t1*` to `t6*` variables are sorted in the same way as for the `glm()` output).
 
-```{r,eval=T,echo=F}
+```{r}
 id <- "1CA1RPRYqU9oTIaHfSroitnWrI6WpUeBw" # google file ID
 d.corona <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download", id),header=T)
 ```
@@ -532,11 +617,21 @@ Which of the following statements are true?
 
 
 (i) There are large differences between the estimated standard errors, which indicates a problem with the bootstrap.
+
+*Answer:* FALSE
+
 (ii) The differences between the estimated standard errors indicate a problem with the assumptions taken about the distribution of the estimated parameters in logistic regression.
-(iii) The `glm` function leads to too small $p$-values for the differences between countries, in particular for the differences between Indonesia and France and between Japan and France.
+
+*Answer:* TRUE. This is the case because the bootstrap is "always right", since it does not rely on any assumptions. Here, the data points might be dependent, which means that the SE is underestimated in the glm-function and the assumption of independent observation pairs in the logistic regression is broken.
+
+(iii) The `glm` function leads to too small $p$-values for the differences between countries, in particular for the 
+differences between Indonesia and France and between Japan and France.
+
+*Answer:* TRUE. This is a consequence of the last point. Since the SE is underestimated, this means that the p-values are too small (since the T-values are too large). 
+
 (iv) The bootstrap relies on random sampling the same data without replacement.
 
-
+*Answer:* FALSE
 
 
 # Problem 5 (Multiple and single choice questions; 11P)
@@ -550,7 +645,7 @@ Which of the following are techniques for regularization?
 (iii) Forward and backward selection
 (iv) Stochastic gradient descent
 
- 
+The following are techniques for regularization: (i), (ii) and (iv). Forward and backward selection are not techniques for regularization, since the estimated coefficient are not shrunk (only chosen). \textcolor{red}{Why is Stochastic Gradient Descent a regularization technique? Look into this!}
 
 
 ## b) Multiple choice - 2P
@@ -558,14 +653,23 @@ Which of the following are techniques for regularization?
 Which of the following statements about principal component regression (PCR) and partial least squares (PLS) are correct?
 
 (i) PCR involves the first principal components that are most correlated with the response.
+
+*Answer:* FALSE
+
 (ii) PLS involves the first principal components that are most correlated with the response.
+
+*Answer:* TRUE
+
 (iii) The idea in PLS is that we choose the principal components that explain most variation among all covariates.
+
+*Answer:* FALSE
+
 (iv) The idea in PCR is that we choose the principal components that explain most variation among all covariates.
 
- 
-
+*Answer:* TRUE
 
 ## c) Single choice - 1P
+
 In ridge regression, we estimate the regression coefficients in a linear regression model by minimizing
 $$
 \sum_{i=1}^n \left( y_i - \beta_0 - \sum_{j-1}^p \beta_j x_{ij} \right)^2 + \lambda \sum_{j=1}^p \beta_j^2 \ .
@@ -579,7 +683,7 @@ What happens when we increase $\lambda$ from 0? Choose the single correct statem
 (iv) The bias will steadily increase.
 (v) The variance of the estimator will steadily increase.
 
- 
+*Answer:* The single correct statement is (iv). 
 
 ## d) Single choice - 1P
 
@@ -591,7 +695,7 @@ Which statement about the _curse of dimensionality_ is correct?
 (iv) It means that support vector machines with radial kernel function should be avoided, because radial kernels correspond to infinite-dimensional polynomial boundaries.
 (v) It means that we should never measure too many covariates when we want to do classification.
 
- 
+*Answer:* The single correct statement is (ii).
 
 ## e) Single choice - 1P
 
@@ -603,8 +707,7 @@ Now assume you have 10 covariates, $X_1$ to $X_{10}$, each of them uniformly dis
 (iv) $0.04$
 (v) $10^{-10}$
 
- 
-
+*Answer:* The single correct statement is (i). \textcolor{red}{Kom hit!}
 
 ## f) Multiple choice - 2P
 
