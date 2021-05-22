@@ -17,7 +17,44 @@ knitr::opts_chunk$set(echo = TRUE,eval = TRUE, tidy=TRUE,message=FALSE,warning=F
 
 ## Problem 1 
 
-Unable to download the dataset; where has it been uploaded?!
+```{r}
+load("pca-examples.rdata")
+nyt.data <- nyt.frame
+pr.out <- prcomp(nyt.data[, -1]) # Remove the first column, which is a factor. 
+biplot(pr.out, scale = 0, cex = 0.5) # There is a lot of information here!
+# Very hard to interpret. Should select some loadings to focus on.
+
+nyt.loading <- pr.out$rotation[, 1:2] # Select loadings from PC1 and PC2
+
+# Find the first most important loadings in PC1 and PC2 (with largest weights). 
+informative.loadings <- rbind(
+  head(nyt.loading[order(nyt.loading[, 1], decreasing = T), ]), 
+  head(nyt.loading[order(nyt.loading[, 2], decreasing = T), ])
+) 
+
+biplot(x = pr.out$x[, 1:2], y = informative.loadings, scale = 0, cex = 0.5)
+
+# Find the first most important loadings in PC1 and PC2 (with largest weights in absolute value). 
+informative.loadings.abs <- rbind(
+  head(nyt.loading[order(abs(nyt.loading[, 1]), decreasing = T), ]), 
+  head(nyt.loading[order(abs(nyt.loading[, 2]), decreasing = T), ])
+) 
+
+biplot(x = pr.out$x[, 1:2], y = informative.loadings.abs, scale = 0, cex = 0.5)
+```
+
+```{r}
+par(mfrow=c(1,2))
+# PVE
+pr.var <- pr.out$sdev^2
+pve <- pr.var/sum(pr.var)
+plot(pve, xlab = "Principal Component", ylab = "Proportion of Variance Explained", type = "b")
+
+# Cumulative PVE
+plot(cumsum(pve), xlab = "Principal Component", ylab = "Cumulative Proportion of Variance Explained", type = "b")
+```
+
+From these types of plots one can extract information about which principal components one should use in order to explain a given amount of variance in the original data. These are visual tools that can be used, instead of only looking at the data given in the summary from `prcomp`.
 
 # Problem 2
 
@@ -30,8 +67,73 @@ at each step.
 
 # Problem 3
 
-Again, the dataset cannot be downloaded unfortunately. 
+k-means clustering in the New York Times stories dataset.
+
+```{r}
+set.seed(4268)
+km.out <- kmeans(nyt.data[, -1], 2, nstart = 20)
+km.out$cluster
+
+# Plot the clusters via Principal Components (PCA projections).
+
+# PCA with true labels.
+plot(pr.out$x[,1:2],type="n")
+points(pr.out$x[nyt.data[,"class.labels"]=="art",1:2],pch="A")
+points(pr.out$x[nyt.data[,"class.labels"]=="music",1:2],pch="M")
+
+# PCA with true labels but colored by k-means clustering.
+plot(pr.out$x[,1:2],type="n")
+points(pr.out$x[nyt.data[,"class.labels"]=="art",1:2],pch="A",col=(km.out$cluster+1)[nyt.data[,"class.labels"]=="art"])
+points(pr.out$x[nyt.data[,"class.labels"]=="music",1:2],pch="M",col=(km.out$cluster+1)[nyt.data[,"class.labels"]=="music"])
+```
+
 
 # Problem 4
 
-The same dataset should be used here. 
+Hierarcichal clustering in the New York Times stories dataset.
+
+```{r}
+x <- nyt.data[, -1]
+
+# Euclidean distances. 
+hc.complete <- hclust(dist(x), method = "complete")
+hc.avg <- hclust(dist(x), method = "average")
+hc.single <- hclust(dist(x), method = "single")
+
+# Correlation-based distance.
+dd <- as.dist(1-cor(t(x)))
+hc.cor.complete <- hclust(dist(x), method = "complete")
+hc.cor.avg <- hclust(dist(x), method = "average")
+hc.cor.single <- hclust(dist(x), method = "single")
+
+par(mfrow = c(2,3))
+plot(hc.complete, main = "Complete Linkage", xlab = " ", sub = " ", cex = 0.5)
+plot(hc.single, main = "Single Linkage", xlab = " ", sub = " ", cex = 0.5)
+plot(hc.avg, main = "Average Linkage", xlab = " ", sub = " ", cex = 0.5)
+plot(hc.cor.complete, cex.main = 0.7, main = "CL with Correlation-based Distance", xlab = " ", sub = " ", cex = 0.5)
+plot(hc.cor.single, cex.main = 0.7, main = "SL with Correlation-based Distance", xlab = " ", sub = " ", cex = 0.5)
+plot(hc.cor.avg, cex.main = 0.7, main = "AL with Correlation-based Distance", xlab = " ", sub = " ", cex = 0.5)
+
+cutree(hc.complete, 2)
+all.equal(cutree(hc.complete, 2), cutree(hc.single, 2), cutree(hc.avg, 2), cutree(hc.cor.complete, 2), cutree(hc.cor.single, 2), cutree(hc.cor.avg, 2)) 
+```
+
+As is apparent, all the distances and linkage measures give the same split into two clusters. 
+
+```{r}
+hc.complete.clusters <- cutree(hc.complete, 2)
+# Plot the clusters from Euclidean distance
+# with complete linkage, via Principal Components (PCA projections).
+
+# PCA with true labels.
+plot(pr.out$x[,1:2],type="n")
+points(pr.out$x[nyt.data[,"class.labels"]=="art",1:2],pch="A")
+points(pr.out$x[nyt.data[,"class.labels"]=="music",1:2],pch="M")
+
+# PCA with true labels but colored by k-means clustering.
+plot(pr.out$x[,1:2],type="n")
+points(pr.out$x[nyt.data[,"class.labels"]=="art",1:2],pch="A",col=(hc.complete.clusters+1)[nyt.data[,"class.labels"]=="art"])
+points(pr.out$x[nyt.data[,"class.labels"]=="music",1:2],pch="M",col=(hc.complete.clusters+1)[nyt.data[,"class.labels"]=="music"])
+```
+
+It is clearly visible that the Hierarcichal clustering is a lot worse than k-means clustering when classifying into 2 clusters, on this data. 
