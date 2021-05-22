@@ -70,7 +70,7 @@ What are the similarities and differences beween a feedforward neural network wi
 
 In a feedforward neural network you may have $10'000$ weights to estimate but only $1000$ observations. How is this possible?
 
-This is possible because you may have 1000 observations in the input layer, but an arbitrarily deep neural network, with arbitrarily wide layers. This is possible to calculate because of the use of iterative methods (gradient descent and backpropagation), which means that there are no unique solutions. 
+This is possible because you may have 1000 observations in the input layer, but an arbitrarily deep neural network, with arbitrarily wide layers. This is possible to calculate because of the use of iterative methods (gradient descent and backpropagation), which means that there are no unique solutions. The network will benefit greatly by adding some sort of regularization, like weight decay and early stopping. 
 
 ## Problem 2
 
@@ -83,7 +83,6 @@ The hidden layer has the ReLu activation function. Moreover, the network has 10 
 
 This formula corresponds to a feedforward network with one input layer (with 10 input nodes and one bias node), one hidden layer and one output layer with one node. The hidden layer has a ReLU activation function and 5 nodes in addition to a bias node. 
 
-
 How many parameters are estimated in this network?
 
 Hence, in this network, $11 \cdot 5 + 6 = 61$ parameters are estimated. 
@@ -93,7 +92,7 @@ Which network architecture and activation functions does this formula give?
 
 $$ \hat{y}_1({\bf x})=(1+\exp(-\beta_{01}-\sum_{m=1}^5 \beta_{m1}\max(\gamma_{0m}+\sum_{l=1}^{10} \gamma_{lm}\max(\sum_{j=1}^{4}\alpha_{jl}x_j,0),0))^{-1}$$
 
-This corresponds to a network with 4 input nodes, one hidden layer with 10 nodes (in addition to a bias node), another hidden layer with 5 nodes (in addition to a bias node) and one output node. The first and second hidden layers have the ReLu activation function, while the output layer has a sigmoid activation function.  
+This corresponds to a network with 4 input nodes, one hidden layer with 10 nodes (in addition to a bias node), another hidden layer with 5 nodes (in addition to a bias node) and one output node. The first and second hidden layers have the ReLU activation function, while the output layer has a sigmoid activation function.  
 
 How many parameters are estimated in this network?
 
@@ -107,7 +106,7 @@ In a regression setting: Consider
 
 Explain how these two ways of thinking differ? Pros and cons?
 
-*Answer*: The first model is simpler, while the second is more complex. The second way gives two transformations of the data, while the first only tranforms it once. Pros with the second way is that it opens to as many non-linear transformations of the data as one could desire, since one can add more hidden layers in the network. Cons with the second way is that it needs iterative solvers and it cannot be guaranteed that a global minimizer of the cost function is found. A pro with the first method is that the parameters in the model can be estimated precisely using linear algebra. Another important pro of the first method is that the estimated coefficients are easy to interpret and, hence, it can be used for inference, where as this is extremely hard (if not impossible) in the neural network setting. Interactions are automatically handled in the neural network setting, since there are non-linear functions of sums from the previous layers, while the interactions need to be added manually in the additive model in the first method. Lastly, a neural net with at least one hidden layer and a "squashing type" activation function, any function can be fit. 
+*Answer*: The first model is simpler, while the second is more complex. The second way gives two transformations of the data, while the first only transforms it once. Pros with the second way is that it opens to as many non-linear transformations of the data as one could desire, since one can add more hidden layers in the network. Cons with the second way is that it needs iterative solvers and it cannot be guaranteed that a global minimizer of the cost function is found. A pro with the first method is that the parameters in the model can be estimated precisely using linear algebra. Another important pro of the first method is that the estimated coefficients are easy to interpret and, hence, it can be used for inference, where as this is extremely hard (if not impossible) in the neural network setting. Interactions are automatically handled in the neural network setting, since there are non-linear functions of sums from the previous layers, while the interactions need to be added manually in the additive model in the first method. Lastly, a neural net with at least one hidden layer and a "squashing type" activation function, any function can be fit. 
 
 ## Problem 3: Handwritten digit recognition data
 
@@ -171,7 +170,7 @@ Use a feedforward-network with one hidden layer to train and predict using the `
 ```{r}
 library(nnet)
 fit.nnet<- nnet(train.labels~., data = train.data, size = 5, MaxNWts = 3000, maxit = 5000)
-summary(fit.nnet)
+#summary(fit.nnet)
 pred <- predict(fit.nnet, newdata = test.data, type="class")
 library(caret)
 confusionMatrix(factor(pred),test.labels)
@@ -228,6 +227,8 @@ model <- keras_model_sequential() %>%
   layer_dense(units = 8, activation = 'relu') %>%
   layer_dense(units = 10, activation = "softmax") # fill in the name of the activation function
 summary(model)
+
+model %>% compile(optimizer = "rmsprop", loss = "categorical_crossentropy", metrics = c("accuracy"))
 ```
 
 Possible choices of the activation function are 'sigmoid', 'softmax' or the identity function (which means that we don't have to define any activation argument in the last layer). What is the use of identity function?
@@ -236,8 +237,8 @@ Possible choices of the activation function are 'sigmoid', 'softmax' or the iden
 
 
 ```{r}
+# Does not work to compile in a different code block than the model definition for some reason (?)
 #model %>% compile(optimizer = "rmsprop", loss = "categorical_crossentropy", metrics = c("accuracy"))
-model%>%compile(optimizer ='rmsprop',loss ='categorical_crossentropy',metrics =c('accuracy'))
 ```
 
 Possible choices of loss function are 'binary_crossentropy', 'categorical_crossentropy' and 'mse'. For metrics you can use 'mean_absolute_error' or 'accuracy'.
@@ -245,7 +246,7 @@ Possible choices of loss function are 'binary_crossentropy', 'categorical_crosse
 ##### 3. Train 
 
 ```{r}
-history <-  model %>% fit(x_train, y_train, epochs = 20, batch_size = 128, validation_split = 0.2)
+history <- model %>% fit(x_train, y_train, epochs = 20, batch_size = 128, validation_split = 0.2, verbose = 0)
 ```
 
 You can find more information about the different arguments in the `fit()` function here: https://keras.rstudio.com/reference/fit.html
@@ -258,22 +259,86 @@ plot(history)
 model %>% evaluate(x_test,y_test)
 ```
 
+The accuracy on the test data is 92.7%, as reported above. 
+
 What is the number of parameters?
+
+The number of parameters are 6442. 
 
 ### b)
 
 Now fit a model with 2 hidden layers with 128 units each. What do you see?
 
+```{r}
+model2 <- keras_model_sequential() %>% 
+  layer_dense(units = 128, activation = 'relu', input_shape = c(28*28)) %>% 
+  layer_dense(units = 128, activation = 'relu') %>%
+  layer_dense(units = 10, activation = "softmax")
+summary(model2)
+
+# Compile.
+model2 %>% compile(optimizer = "rmsprop", loss = "categorical_crossentropy", metrics = c("accuracy"))
+
+# Train.
+history2 <- model2 %>% fit(x_train, y_train, epochs = 20, batch_size = 128, validation_split = 0.2, verbose = 0)
+
+# Evaluate. 
+str(history2)
+plot(history2)
+model2 %>% evaluate(x_test,y_test)
+```
+
+We see that the validation loss reaches its minimum after 5-10 epochs and increases again after this. Thus, the larger network overfits after the first 5-10 epochs, which is a problem. 
+
 ### c)
 
-In order to avoid the problem we have seen in b), we can use weight reguralization (L1 and L2 norms) or dropout. Apply these methods to the network from b). 
+In order to avoid the problem we have seen in b), we can use weight regularization (L1 and L2 norms) or dropout. Apply these methods to the network from b). 
 
-**R-hint:** for weight reguralization you can use  
 ```{r}
-layer_dense(units = 16, activation = "relu", input_shape = 28*28, 
-            
-            kernel_regularizer = regularizer_l2(l = 0.001))
+# Regularization with weight decay with L2 norm. 
+# Build the model
+model3 <- keras_model_sequential() %>% 
+  layer_dense(units = 128, activation = 'relu', input_shape = c(28*28), 
+              kernel_regularizer = regularizer_l2(l = 0.001)) %>%  
+  layer_dense(units = 128, activation = 'relu', 
+              kernel_regularizer = regularizer_l2(l = 0.001)) %>%
+  layer_dense(units = 10, activation = "softmax") 
+summary(model3)
+
+# Compile.
+model3 %>% compile(optimizer = "rmsprop", loss = "categorical_crossentropy", metrics = c("accuracy"))
+
+# Train.
+history3 <- model3 %>% fit(x_train, y_train, epochs = 20, batch_size = 128, validation_split = 0.2, verbose = 0)
+
+# Evaluate. 
+str(history3)
+plot(history3)
+model3 %>% evaluate(x_test,y_test)
+
+
+# Regularization with dropout. 
+# Build the model. 
+model4 <- keras_model_sequential() %>% 
+  layer_dense(units = 128, activation = 'relu', input_shape = c(28*28)) %>% 
+  layer_dropout(rate = 0.6) %>%
+  layer_dense(units = 128, activation = 'relu') %>%
+  layer_dropout(rate = 0.6) %>%
+  layer_dense(units = 10, activation = "softmax")
+summary(model4)
+
+# Compile.
+model4 %>% compile(optimizer = "rmsprop", loss = "categorical_crossentropy", metrics = c("accuracy"))
+
+# Train.
+history4 <- model4 %>% fit(x_train, y_train, epochs = 20, batch_size = 128, validation_split = 0.2, verbose = 0)
+
+# Evaluate. 
+str(history4)
+plot(history4)
+model4 %>% evaluate(x_test,y_test)
 ```
-and for dropout you can use  `layer_dropout(0.6) %>%` after each hidden layer. For more details see [here](https://keras.rstudio.com/articles/tutorial_overfit_underfit.html).
 
+Now the validation curves look better than before. 
 
+For more details on regularization, see [here](https://keras.rstudio.com/articles/tutorial_overfit_underfit.html).
