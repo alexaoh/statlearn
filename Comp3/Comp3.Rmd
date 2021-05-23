@@ -153,7 +153,7 @@ plot(history.drop.reg)
 par(mfrow=c(1,1)) # reset plotting grid. 
 ```
 
-The dropout seems to improve the model fit, while the regularization with weight decay with L2-norm does not seem to boost the performance compared to no use of regularization (from earlier). 
+Both regularization methods seem to improve the model fit by some amount, compared to no use of regularization techniques. The differences are not dramatic however.  
 
 # Problem 2 (10P)
 
@@ -223,7 +223,7 @@ anova(glm.fit, test = "Chisq")
 
 (iii) Increasing the age by 10 years, $x_{age}^* = x_{age}+10$, and holding all other covariates constant, the odds ratio to die increases by a factor of 1.97.
 
-*Answer:* FALSE \textcolor{red}{Why is this false? I have asked the Q on Piazza.} This is the case because the odds ratio is constantly equal to $\exp{10 \cdot \beta_{sex}}$, while the odds changes with this amount (the odds ratio), when $x$ is changed by 10. 
+*Answer:* FALSE \textcolor{red}{Explanation:} This is the case because the odds ratio is constantly equal to $\exp{10 \cdot \beta_{sex}}$, while the odds _changes_ with this amount (the odds ratio), when $x$ is changed by 10. 
 
 (iv) The probability to die is approximately $3.12$ larger for males than for females.
 
@@ -373,6 +373,7 @@ Before we start analyzing the data, visualize the distributions of all continuou
 
 ```{r}
 hist(d.support$totcst)
+hist(log(d.support$totcst))
 hist(d.support$age)
 hist(d.support$hrt)
 hist(d.support$edu)
@@ -440,7 +441,7 @@ y.test<- log(d.support.test$totcst)
 set.seed(4268)
 cv.ridge <- cv.glmnet(x.train, y.train, alpha = 0)
 plot(cv.ridge)
-lambda.ridge <- cv.ridge$lambda.1se
+(lambda.ridge <- cv.ridge$lambda.1se)
 ridge <- glmnet(x.train, y.train, alpha = 0, lambda = lambda.ridge)
 coef(ridge)
 plot(glmnet(x.train, y.train, alpha = 0), "lambda")
@@ -473,7 +474,7 @@ pls.pred <- predict(pls.fit, d.support.test, ncomp = 4)
 mean((pls.pred - log(d.support.test$totcst))^2)
 ```
 
-The MSE is slightly smaller in this case, compared to the result when using Ridge regression. Thus, PLS is a better choice than Ridge regression, even though the results do not differ by a lot, since prediction is the sole aim in this case.  
+The MSE is slightly smaller in this case, compared to the result when using Ridge regression. Thus, PLS is a better choice than Ridge regression, even though the results do not differ by a lot, since prediction is the sole aim in this case. Could also have chosen 6 PCs, since this gives the absolute lowest CV error with the smallest possible model.
 
 ## e) (4P)
 
@@ -524,8 +525,8 @@ y.test <- log(d.support.test[, 7]) # only totcst
 forest.fit <- randomForest(train.predictors, y = y.train, xtest = test.predictors,
                            ytest = y.test, mtry = m, ntree = 1000, importance = T)
 plot(1:1000, forest.fit$test$mse, col = "blue", type = "l", ylim = c(0.815, 0.90))
-# Choose B = 1000.
-forest.fit$test$mse[1000]
+# Choose B = 600 for example.
+forest.fit$test$mse[600]
 ```
 
 Very briefly discuss or explain your choices (1-2 sentences each).
@@ -645,7 +646,7 @@ Which of the following are techniques for regularization?
 (iii) Forward and backward selection
 (iv) Stochastic gradient descent
 
-The following are techniques for regularization: (i), (ii) and (iv). Forward and backward selection are not techniques for regularization, since the estimated coefficient are not shrunk (only chosen). \textcolor{red}{Why is Stochastic Gradient Descent a regularization technique? Look into this!}
+The following are techniques for regularization: (i), (ii) and (iv). Forward and backward selection are not techniques for regularization, since the estimated coefficient are not shrunk (only chosen). 
 
 
 ## b) Multiple choice - 2P
@@ -707,7 +708,7 @@ Now assume you have 10 covariates, $X_1$ to $X_{10}$, each of them uniformly dis
 (iv) $0.04$
 (v) $10^{-10}$
 
-*Answer:* The single correct statement is (i). \textcolor{red}{Kom hit!}
+*Answer:* The single correct statement is (i).
 
 ## f) Multiple choice - 2P
 
@@ -739,8 +740,7 @@ Which of the following statements are true?
 (iii) A perfect diagnostic test has an AUC of 0.5.
 (iv) The vital sign that is most suitable to distinguish between patients with and without brain lesion is systolic blood pressure. 
 
- 
-
+The true statements are (i), (ii) and (iv).
 
 ## g) Multiple choice - 2P
 
@@ -771,3 +771,5 @@ Which of the following statements are true, which false?
 (ii) Athletes that are good in 100m tend to be also good in long jump.
 (iii) The first principal component has the highest loadings for 100m and long jump.
 (iv) 110m hurdle has a very small loading for PC2.
+
+The true statements are (ii), (iii) and (iv). 
