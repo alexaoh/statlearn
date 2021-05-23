@@ -106,7 +106,7 @@ In a regression setting: Consider
 
 Explain how these two ways of thinking differ? Pros and cons?
 
-*Answer*: The first model is simpler, while the second is more complex. The second way gives two transformations of the data, while the first only transforms it once. Pros with the second way is that it opens to as many non-linear transformations of the data as one could desire, since one can add more hidden layers in the network. Cons with the second way is that it needs iterative solvers and it cannot be guaranteed that a global minimizer of the cost function is found. A pro with the first method is that the parameters in the model can be estimated precisely using linear algebra. Another important pro of the first method is that the estimated coefficients are easy to interpret and, hence, it can be used for inference, where as this is extremely hard (if not impossible) in the neural network setting. Interactions are automatically handled in the neural network setting, since there are non-linear functions of sums from the previous layers, while the interactions need to be added manually in the additive model in the first method. Lastly, a neural net with at least one hidden layer and a "squashing type" activation function, any function can be fit. 
+*Answer*: The first model is simpler, while the second is more complex. The second model gives two transformations of the data, while the first only transforms it once. Pros with the second model is that it opens to as many non-linear transformations of the data as one could desire, since one can add more hidden layers in the network. Cons with the second way is that it needs iterative solvers and it cannot be guaranteed that a global minimizer of the cost function is found. A pro with the first method is that the parameters in the model can be estimated precisely using linear algebra. Another important pro of the first method is that the estimated coefficients are easy to interpret and, hence, it can be used for inference, where as this is extremely hard (if not impossible) in the neural network setting. Interactions are automatically handled in the neural network setting, since there are non-linear functions of sums from the previous layers, while the interactions need to be added manually in the additive model in the first method. Lastly, a neural net with at least one hidden layer and a "squashing type" activation function, can approximate any function (with finite-dimensional domain and co-domain).
 
 ## Problem 3: Handwritten digit recognition data
 
@@ -165,9 +165,9 @@ test.data <- scale(test.data, center = mean, scale = std)
 
 
 ### b) 
-Use a feedforward-network with one hidden layer to train and predict using the `nnet()` function from the `nnet` R package. Include 5 hidden nodes plus a bias node in the input and hidden layers. What is the number of parameters? Look at the confusion table for the test data. How good does the network perfom? 
+Use a feedforward-network with one hidden layer to train and predict using the `nnet()` function from the `nnet` R package. Include 5 hidden nodes plus a bias node in the input and hidden layers. What is the number of parameters? Look at the confusion table for the test data. How good does the network perform? 
 
-```{r}
+```{r, eval = F}
 library(nnet)
 fit.nnet<- nnet(train.labels~., data = train.data, size = 5, MaxNWts = 3000, maxit = 5000)
 #summary(fit.nnet)
@@ -176,6 +176,7 @@ library(caret)
 confusionMatrix(factor(pred),test.labels)
 ```
 
+The number of parameters is $(257 \cdot 5) + (6 \cdot 10) = 1345$. The performance of the neural network can be observed in the output. 
 
 # Problem 4: Deep Learning with Keras
 
@@ -232,6 +233,8 @@ model %>% compile(optimizer = "rmsprop", loss = "categorical_crossentropy", metr
 ```
 
 Possible choices of the activation function are 'sigmoid', 'softmax' or the identity function (which means that we don't have to define any activation argument in the last layer). What is the use of identity function?
+
+The identity function is used in the output layer for regression problems. 
 
 ##### 2. Compile 
 
@@ -321,9 +324,9 @@ model3 %>% evaluate(x_test,y_test)
 # Build the model. 
 model4 <- keras_model_sequential() %>% 
   layer_dense(units = 128, activation = 'relu', input_shape = c(28*28)) %>% 
-  layer_dropout(rate = 0.6) %>%
+  layer_dropout(rate = 0.4) %>%
   layer_dense(units = 128, activation = 'relu') %>%
-  layer_dropout(rate = 0.6) %>%
+  layer_dropout(rate = 0.4) %>%
   layer_dense(units = 10, activation = "softmax")
 summary(model4)
 
