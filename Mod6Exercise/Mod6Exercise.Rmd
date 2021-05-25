@@ -237,7 +237,7 @@ plot(regfit.fwd, scale = "Cp")
 
 ```{r}
 # Backward selection.
-regfit.bwd <- regsubsets(Balance~., data = credit_data_training, nvmax = n, method = "forward")
+regfit.bwd <- regsubsets(Balance~., data = credit_data_training, nvmax = n, method = "backward")
 reg.bwd.summary <- summary(regfit.bwd)
 
 # For plotting best points. 
@@ -273,7 +273,7 @@ plot(regfit.bwd, scale = "Cp")
 
 ```{r}
 # Hybrid selection.
-regfit.h <- regsubsets(Balance~., data = credit_data_training, nvmax = n, method = "forward")
+regfit.h <- regsubsets(Balance~., data = credit_data_training, nvmax = n, method = "seqrep")
 reg.h.summary <- summary(regfit.h)
 
 # For plotting best points. 
