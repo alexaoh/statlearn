@@ -1,0 +1,178 @@
+---
+title: "Problem 6 - Data analysis II"
+author: "alexaoh"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  pdf_document
+---
+  
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, tidy=TRUE,message=FALSE,warning=FALSE,strip.white=TRUE,prompt=FALSE,
+                      cache=TRUE, size="scriptsize",fig.width=4, fig.height=3, fig.align = "center", comment = "#>")
+```
+
+
+All needed packages are run first in a chunk with `echo = FALSE`. 
+
+```{r, echo = FALSE}
+library(knitr)
+library(MASS)
+library(keras)
+library(caret)
+library(pls)
+library(glmnet)
+library(gam)
+library(gbm)
+library(randomForest)
+```
+
+---
+
+Import data. 
+
+```{r}
+id <- "1cSVIJv-OoAwkhUAuun2qQyOfiuZzkmo3"
+d.sparrows <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download",
+id), header = T)
+#pairs(d.sparrows)
+str(d.sparrows)
+```
+
+
+
+## a)
+
+Logistic regression is fitted below. 
+
+```{r}
+d.sparrows$hisl <- as.factor(d.sparrows$hisl)
+
+# First model.
+log.fit <- glm(recruit~. + sex:f , data = d.sparrows, family = "binomial")
+summary(log.fit)
+
+# Second model.
+log.fit2 <- glm(recruit~. + sex:f -hisl , data = d.sparrows, family = "binomial")
+summary(log.fit2)
+
+# Evidence?
+anova(log.fit, log.fit2, test = "Chisq")
+```
+
+Depending on the level of significance chosen, there might be evidence that the survival probabilities differed between hatch islands, based on the $p$-value shown in the output above. Since $p \approx 0.03$ one might want to conclude that there is evidence, e.g. if the significance level is chosen at 0.05 (which is pretty normal to do). Hence, based on this significance level, I would conclude that there is evidence that the survival probabilities differed between hatch islands.
+
+## b)
+
+Split the dataset. 
+
+```{r}
+set.seed(123456)
+samples <- sample(1:169,120, replace=F)
+d.sparrows.train <- d.sparrows[samples,]
+d.sparrows.test <- d.sparrows[-samples,]
+```
+
+Logistic regression without hatch island and without the interaction between f and sex. 
+
+```{r}
+# Fit the model.
+log.fit3 <- glm(recruit~. - hisl, data = d.sparrows.train, family = "binomial")
+summary(log.fit3)
+
+# Predict with cutoff p = 0.5.
+glm.probs <- predict(log.fit3, newdata = d.sparrows.test, type = "response")
+glm.preds <- ifelse(glm.probs>0.5, "1", "0")
+
+# Confusion table. 
+(glm.conf <- table(true = d.sparrows.test$recruit, predicted = glm.preds))
+sens <- glm.conf[2, 2]/(sum(glm.conf[2, ]))
+spes <- glm.conf[1, 1]/sum(glm.conf[1, ])
+(spes.sens.log <- c(sensitivity = sens, specificity = spes))
+```
+
+The confusion matrix, as well as the sensitivity and the specificity can be seen in the output above. 
+
+## c)
+
+Same as *b)*, but with QDA instead. 
+
+```{r}
+# Fit the model.
+qda.fit <- qda(recruit~. - hisl, data = d.sparrows.train)
+summary(qda.fit)
+
+# Predict with cutoff p = 0.5.
+qda.prob <- predict(qda.fit, newdata = d.sparrows.test)$posterior
+qda.preds <- ifelse(qda.prob>0.5, "1", "0")[, 2] # Choose probs for 1.
+qda.classes <- predict(qda.fit, newdata = d.sparrows.test)$class # This gives the same result.
+
+
+# Confusion table. 
+(qda.conf <- table(true = d.sparrows.test$recruit, predicted = qda.preds))
+sens <- qda.conf[2, 2]/(sum(qda.conf[2, ]))
+spes <- qda.conf[1, 1]/sum(qda.conf[1, ])
+(spes.sens.qda <- c(sensitivity = sens, specificity = spes))
+```
+
+The confusion matrix, as well as the sensitivity and the specificity can be seen in the output above. 
+
+
+## d)
+
+Neural network for classification. 
+
+First, prepare the data. 
+
+```{r}
+library(keras)
+library(caret)
+x_train <- d.sparrows.train[,-c(6,11)]
+x_test = d.sparrows.test[,-c(6,11)]
+
+mean = apply(x_train, 2, mean)                                
+std = apply(x_train, 2, sd)
+x_train = scale(x_train, center = mean, scale = std)
+x_test = scale(x_test, center = mean, scale = std)
+
+y_train = as.numeric(d.sparrows.train$recruit)
+y_test =  as.numeric(d.sparrows.test$recruit)
+```
+
+Next, perform the classification with the neural network. 
+
+```{r}
+set.seed(1234)
+# Build the model
+model <- keras_model_sequential() %>% 
+  layer_dense(units = 32, activation = 'relu', input_shape = ncol(x_train)) %>%  
+  layer_dropout(rate = 0.2) %>%
+  layer_dense(units = 64, activation = 'relu') %>%
+  layer_dropout(rate = 0.2) %>%
+  layer_dense(units = 1, activation = "sigmoid") 
+
+model %>% compile(optimizer ='rmsprop',loss ='mse',metrics =c('mae'))
+
+# Train
+history <-  model %>% fit(x_train, y_train, epochs = 25, batch_size = 16, validation_split = 0.5)
+
+# Predict 
+# Assuming that the method 'predict_classes' uses cut-off of 0.5. 
+predictionsNN <- model %>% predict_classes(x_test) 
+
+# Confusion table. 
+(NN.conf <- table(true = d.sparrows.test$recruit, predicted = predictionsNN))
+sens <- NN.conf[2, 2]/(sum(NN.conf[2, ]))
+spes <- NN.conf[1, 1]/sum(NN.conf[1, ])
+(spes.sens.NN <- c(sensitivity = sens, specificity = spes))
+```
+
+The confusion matrix, as well as the sensitivity and the specificity can be seen in the output above. 
+
+All the different performances are summarized below.
+
+```{r, cache = F}
+(perf <- data.frame(log = spes.sens.log, qda = spes.sens.qda, NN = spes.sens.NN))
+```
+
+As is apparent, all three methods perform a bit differently. Depending on if one wantt to prioritize higher sensitivity or specificity (or both) one can pick and choose between the methods. Their specificities are relatively similar however, while the sensitivities differ quite dramatically. 

@@ -1,0 +1,161 @@
+---
+title: "Problem 5 - Data analysis I"
+author: "alexaoh"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  pdf_document
+---
+  
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, tidy=TRUE,message=FALSE,warning=FALSE,strip.white=TRUE,prompt=FALSE,
+                      cache=TRUE, size="scriptsize",fig.width=4, fig.height=3, fig.align = "center", comment = "#>", cache = F)
+```
+
+
+All needed packages are run first in a chunk with `echo = FALSE`. 
+
+```{r, echo = FALSE}
+library(knitr)
+library(MASS)
+library(keras)
+library(caret)
+library(pls)
+library(glmnet)
+library(gam)
+library(gbm)
+library(randomForest)
+```
+
+---
+
+Import data. 
+
+```{r}
+id <- "1dNLfx9Dbs2gYIooUxA6HMxK_MPFwE3Hn"
+d.bodyfat <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download",id), header = T)
+#pairs(d.bodyfat)
+str(d.bodyfat)
+```
+
+```{r}
+set.seed(1234)
+samples <- sample(1:243,180, replace=F)
+d.body.train <- d.bodyfat[samples,]
+d.body.test <- d.bodyfat[-samples,]
+```
+
+
+## a)
+
+Lasso regression is performed below. The parameter $\lambda$ is chosen via 10-fold cross-validation, where it is chosen to be the largest value of $\lambda$ such that the mean cross-validated error is within one standard error of the minimum, following the principle of parsimony. 
+
+```{r}
+# Make data on correct format. 
+x.train <- model.matrix(bodyfat~., data = d.body.train)[, -1] # Remove the intercept. 
+y.train <- d.body.train$bodyfat
+x.test <- model.matrix(bodyfat~., data = d.body.test)[, -1] # Remove the intercept. 
+y.test <- d.body.test$bodyfat
+
+lasso.mod <- glmnet(x.train, y.train, alpha = 1) # alpha = 1 gives Lasso. 
+
+cv.lasso <- cv.glmnet(x.train, y.train, alpha = 1)
+plot(cv.lasso)
+
+(lambda.lasso <- cv.lasso$lambda.1se)
+
+lasso.pred <- predict(lasso.mod, s = lambda.lasso, newx = x.test)
+(lasso.mse <- mean((lasso.pred-y.test)^2))
+```
+
+
+## b) 
+
+Linear regression with all covariates. 
+
+```{r}
+lm.fit <- lm(bodyfat~., data = d.body.train)
+linreg.pred <- predict(lm.fit, newdata = d.body.test)
+(linreg.mse <- mean((linreg.pred - d.body.test$bodyfat)^2))
+
+# Comparison.
+(errors <- data.frame(lasso = lasso.mse, linreg = linreg.mse))
+```
+
+The data frame above compares the errors from the two methods. We can see that the error is smaller for the lasso compared to the linreg. The difference is most likely taking place because there are many covariates that are not good predictors of, or strongly related to, bodyfat. 
+
+```{r}
+lasso.best <- glmnet(x.train, y.train, alpha = 1, lambda = lambda.lasso)
+coef(lasso.best)
+summary(lm.fit)
+plot(glmnet(x.train, y.train, alpha = 1), "lambda")
+abline(v = log(lambda.lasso))
+```
+
+From the output above, it is apparent that many of the coefficients are set to zero by Lasso. This is the regularization effect of Lasso that makes the big difference in the estimates and also in the models overall. We can also see that the covariates that are deemed important, i.e. not set to zero, by Lasso are shrinked compared to the similar coefficients in the linear regression. This is, again, a consequence of the regularization effect of Lasso, with the goal of decreasing variance more than the increase in bias, such that the overall test error is decreased. 
+
+
+## c)
+A GAM is fit below. 
+
+```{r}
+gam.fit <- gam(bodyfat ~ poly(age, 2) + ns(height, df = 3) + ns(abdomen, df = 4) + s(hip) + weight + bmi, data = d.body.train)
+
+# ns with df = 4 gives knots at the given percentiles automatically. 
+
+gam.pred <- predict(gam.fit, newdata = d.body.test)
+(gam.mse <- mean((gam.pred - d.body.test$bodyfat)^2))
+
+(errors <- data.frame(errors, gam = gam.mse)) # All the errors again. 
+```
+
+## d)
+
+PLS regression on training data is run below. It is run with 10-fold cross-validation also, such that one can see what the CV-error is for each possible number of principal components used. 
+
+```{r}
+pls.fit <- plsr(bodyfat ~ ., scale = TRUE, validation = "CV", data = d.body.train)
+summary(pls.fit)
+```
+
+The smallest number of components such that at least 95\% of the covariate variance in the training data is explained is 10, as seen from the output above. Nine principal components explain 94.95, which is just short of 95, which is why we have to choose 10 components. 
+
+The MSE when using these components is reported below. 
+
+```{r}
+pls.pred <- predict(pls.fit, d.body.test, ncomp = 10)
+(pls.mse <- mean((pls.pred - d.body.test$bodyfat)^2))
+
+(errors <- data.frame(errors, pls = pls.mse)) # All the errors again, for comparison. 
+```
+
+## e)
+
+Below a random forest has been fitted. The number of covariates allowed to use in each split $m$ is chosen to $p/3 = 5$, since this is a regression problem. Moreover, the amount of trees (which is not a tuning parameter!) is chosen to $B = 600$, based on the plot below, since the error is stable here. 
+
+```{r}
+(m <- round(ncol(d.body.train)/3)) # regression.
+train.predictors <- d.body.train[, -1] # remove bodyfat.
+y.train <- d.body.train[, 1] # only bodyfat.
+test.predictors <- d.body.test[, -1] # remove bodyfat.
+y.test <- d.body.test[, 1] # only bodyfat.
+
+forest.fit <- randomForest(train.predictors, y = y.train, xtest = test.predictors,
+                           ytest = y.test, mtry = m, ntree = 1000, importance = T)
+plot(1:1000, forest.fit$test$mse, col = "blue", type = "l")
+
+# Choose B = 600 for example, since the error seems to be stable after this amount.  
+(forest.mse <- forest.fit$test$mse[600])
+
+(errors <- data.frame(errors, forest = forest.mse)) # All the errors again, for comparison. 
+importance(forest.fit)
+varImpPlot(forest.fit, main = "", cex = 0.5) # To see what variables are important. 
+```
+
+## f)
+
+The errors are printed again below. Based on these results, the lasso seems to do the best, and the linear regression is the worst. However, bear in mind that all the other methods are relatively similar in their errors, which means that these results may change when the splits into training and testing data sets is changed (e.g. if the seed is changed.)
+
+```{r, cache = F}
+errors
+```

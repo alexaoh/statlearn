@@ -1,5 +1,5 @@
 ---
-title: "Problem xy (use separate files for each problem)"
+title: "Problem xy"
 author: "Candidate number "
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
